@@ -12,11 +12,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.path as mpath
 from scipy.spatial import cKDTree
-sys.path.append('RSUTRA')
-sys.path.append('/home/jimmy/phd/resipy/src')
+
+# add custom modules 
+if 'RSUTRA' not in sys.path: 
+    sys.path.append('RSUTRA')
+linux_r_path = '/home/jimmy/phd/resipy/src'
+win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+if sys.platform == 'linux' and linux_r_path not in sys.path: 
+    sys.path.append(linux_r_path)
+if 'win' in sys.platform.lower() and win_r_path not in sys.path:
+    sys.path.append(win_r_path)
 from resipy import meshTools as mt
 from SUTRAhandler import handler, material 
-# from SUTRAhandler import invVGcurve
 
 # setup script variables and functions 
 secinday = 24*60*60 

@@ -55,14 +55,14 @@ params = {}
 for i in range(nzones): 
     params[i] = {} 
     n = i+1 
-    axs[i].tricontourf(df['alpha-%i'%n][stable]*1000, 
-                       df['vn-%i'%n][stable],
+    axs[i].tricontourf(df['alpha_%i'%n][stable]*1000, 
+                       df['vn_%i'%n][stable],
                        df['Pt'][stable])
     axs[i].set_xlabel('Alpha (1/m)')
     axs[i].set_ylabel('N (-)')
     # add histograms 
-    x = df['alpha-%i'%n][stable]*1000
-    y = df['vn-%i'%n][stable]
+    x = df['alpha_%i'%n][stable]*1000
+    y = df['vn_%i'%n][stable]
     scatter_hist(x, y, axs[i], axs['hist_x%i'%i], axs['hist_y%i'%i])
     # fit a histogram 
     px = norm.fit(x)
@@ -89,8 +89,8 @@ for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt']>0) 
     for i in range(nzones): 
         n = i+1 
-        x = df['alpha-%i'%n][idx]*1000
-        y = df['vn-%i'%n][idx]
+        x = df['alpha_%i'%n][idx]*1000
+        y = df['vn_%i'%n][idx]
         axs[i].plot(x, y)  
 
     
