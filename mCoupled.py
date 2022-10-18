@@ -30,6 +30,10 @@ from resipy import meshTools as mt
 from SUTRAhandler import handler, material, secinday, normLike
 from petroFuncs import ssf_petro, wmf_petro, wmf_petro_sat, ssf_polyn
 
+exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
+if 'win' in sys.platform.lower():
+    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
 
@@ -202,7 +206,7 @@ h.rpmax = 1e3
 h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
-h.setEXEC('/home/jimmy/programs/SUTRA_JB/bin/sutra')
+h.setEXEC(exec_loc)
 
 ## compute cell depths 
 depths, node_depths = h.getDepths()

@@ -15,8 +15,12 @@ from scipy.spatial import cKDTree
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
-if '/home/jimmy/phd/resipy/src' not in sys.path: 
-    sys.path.append('/home/jimmy/phd/resipy/src')
+linux_r_path = '/home/jimmy/phd/resipy/src'
+win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+if sys.platform == 'linux' and linux_r_path not in sys.path: 
+    sys.path.append(linux_r_path)
+if 'win' in sys.platform.lower() and win_r_path not in sys.path:
+    sys.path.append(win_r_path)
 from resipy import Survey, Project 
 from resipy.r2in import write2in # needed for forward modelling 
 from resipy import meshTools as mt
@@ -24,12 +28,16 @@ from SUTRAhandler import handler, material, secinday, normLike
 # from SUTRAhandler import invVGcurve
 from petroFuncs import ssf_petro, wmf_petro, wmf_petro_sat, ssf_polyn
 
+exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
+if 'win' in sys.platform.lower():
+    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
 
 # read in topo data
-topo = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/topoData/2016-01-08.csv')
-elec = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/elecData/2016-01-08.csv')
+topo = pd.read_csv('topoData/2016-01-08.csv')
+elec = pd.read_csv('elecData/2016-01-08.csv')
 
 # read in warm up
 warmup = pd.read_csv('HydroWarmUp/warm.csv')
@@ -182,7 +190,7 @@ h.rpmax = 5e3
 h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
-h.setEXEC('/home/jimmy/programs/SUTRA_JB/bin/sutra')
+h.setEXEC(exec_loc)
 
 ## compute cell depths 
 depths, node_depths = h.getDepths()
