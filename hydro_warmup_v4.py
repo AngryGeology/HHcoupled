@@ -29,12 +29,16 @@ from SUTRAhandler import handler, material
 secinday = 24*60*60 
 plt.close('all')
 
+exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
+if 'win' in sys.platform.lower():
+    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
 
 rainfall = pd.concat([rainfall[::2]]*5).reset_index()
 # read in topo data
-topo = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/topoData/2016-01-08.csv')
+topo = pd.read_csv('topoData/2016-01-08.csv')
 
 rainfall.loc[:,'EFF_RAIN'] = 5 
 
@@ -125,7 +129,7 @@ h.rpmax = 5e3
 h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
-h.setEXEC('/home/jimmy/programs/SUTRA_JB/bin/sutra')
+h.setEXEC(exec_loc)
 
 ## compute cell depths 
 depths, node_depths = h.getDepths()
