@@ -6,7 +6,7 @@ Petrophysical functions for coupling SUTRA and R2.
 @author: jimmy
 """
 import numpy as np 
-from solveWaxSmit import solveRtWVP, solveRtSt 
+from solveWaxSmit import solveRtWVP# , solveRtSt 
 theta_param = np.genfromtxt('petroFit/theta_fit.txt')
 ssf_poly_param = np.genfromtxt('petroFit/SSF_(Disturbed)_fit.txt')
 Rw = 1.013171225937183451e+01
@@ -75,11 +75,11 @@ def ssf_petro(sat):
                     gparam[1]['n'])
     return Rt 
 
-def wmf_petro_sat(sat):
-    # solve in terms of native saturation 
-    Rt = solveRtSt(sat, gparam[2]['Rw'], gparam[2]['cec'], gparam[2]['FF'], 
-                   gparam[2]['n'])
-    return Rt 
+# def wmf_petro_sat(sat):
+#     # solve in terms of native saturation 
+#     Rt = solveRtSt(sat, gparam[2]['Rw'], gparam[2]['cec'], gparam[2]['FF'], 
+#                    gparam[2]['n'])
+#     return Rt 
 
 #%% polynomial functions 
 def ssf_polyn(sat):

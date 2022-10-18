@@ -26,7 +26,7 @@ from resipy.r2in import write2in # needed for forward modelling
 from resipy import meshTools as mt
 from SUTRAhandler import handler, material, secinday, normLike
 # from SUTRAhandler import invVGcurve
-from petroFuncs import ssf_petro, wmf_petro, wmf_petro_sat, ssf_polyn
+from petroFuncs import ssf_petro, wmf_petro, ssf_polyn # ,wmf_petro_sat  
 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
@@ -175,7 +175,7 @@ RMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetro(ssf_polyn)
-WMF.setPetro(wmf_petro_sat)
+WMF.setPetro(wmf_petro)
 DOG.setPetro(ssf_petro)
 RMF.setPetro(wmf_petro)
 
