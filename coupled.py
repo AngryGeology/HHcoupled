@@ -339,8 +339,8 @@ h.getResults()  # get results
 
 #%% create MC runs 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = np.linspace(0.5e-4, 4.0e-4,15)
-alpha_WMF = np.linspace(0.1e-4, 1.0e-4,10)
+alpha_SSF = np.linspace(0.05, 0.4,15)
+alpha_WMF = np.linspace(0.01, 0.1,10)
 vn_SSF = np.linspace(1.2, 2,10)
 vn_WMF = np.linspace(1.2, 2,5)
 
@@ -355,7 +355,7 @@ SSF.setMCparam(ssf_param)
 h.setupMultiRun() 
 
 #%% run MC runs 
-h.cpu = 20 
+h.cpu = 16
 h.runMultiRun()
 run_keys = h.getMultiRun()
 
@@ -383,7 +383,7 @@ for i,key in enumerate(data_store.keys()):
 alpha = []
 vn = []
 for run in run_keys:
-    alpha.append(h.runparam[run]['alpha'][0]*1000) # * by 10^3 to get back into 1/m
+    alpha.append(h.runparam[run]['alpha'][0]) 
     vn.append(h.runparam[run]['vn'][0])
     
 #%% plot and save 
