@@ -428,7 +428,6 @@ def doSUTRArun(wd,execpath=None,return_data=True): # single run of sutra
     
     if platform.system() == "Windows":#command line input will vary slighty by system 
         cmd_line = [execpath]
-    
     elif platform.system() == 'Linux':
         cmd_line = [execpath] # using linux version if avialable (can be more performant)
         if '.exe' in execpath: # assume its a windows executable 
@@ -2105,6 +2104,7 @@ class handler:
         mz = self.mesh.node[:,2]
         depths_node  = self.mesh.ptdf['depths'].values 
         
+        mesh = self.project.mesh
         rx = self.project.mesh.df['X'].values 
         # ry = self.project.mesh.df['Y'].values 
         rz = self.project.mesh.df['Z'].values 
@@ -2149,7 +2149,7 @@ class handler:
                     fh.write(line)
                 fh.close() 
 
-                self.project.mesh.dat(os.path.join(dpath,'mesh.dat'))
+                mesh.dat(os.path.join(dpath,'mesh.dat'))
                 write2in(self.project.param,dpath,typ=self.project.typ)
                 
                 # set sequence 

@@ -367,10 +367,17 @@ surface = np.c_[topo['y'],topo['z']]
 k.createMesh(cl_factor=4, surface=surface)
 
 h.setRproject(k)
+# we need to add one becuase the steps start from a initialising run where t=0 
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
-# we need to add one becuase the steps start from a initialising run where t=0 
+# now setup R2 folders 
+if 'win' in sys.platform.lower():
+    h.cpu = 1 # if on windows go single threaded for this task to avoid instability 
 h.setupRruns(write2in,run_keys,survey_keys,sequences)
+
+#now go through and run folders 
+if 'win' in sys.platform.lower():
+    h.cpu = 16 # put number of cores back up to 16 
 h.runResFwdmdls(run_keys)
 data_store = h.getFwdRunResults(run_keys)
 
