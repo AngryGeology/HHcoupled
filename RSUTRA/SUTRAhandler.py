@@ -2169,7 +2169,12 @@ class handler:
         if len(run_keys) == 1: 
             loop(0)
             return 
-        
+        # if using just one cpu do loop in serial 
+        if self.ncpu <= 1:
+            for k in tqdm(range(len(run_keys)),ncols=100,desc='Setting R2 files'):
+                loop(k)
+            return # jump out of function here 
+        # otherwise run in parallel 
         Parallel(n_jobs=self.ncpu)(delayed(loop)(k) for k in tqdm(range(len(run_keys)),ncols=100,desc='Setting R2 files'))
 
                 
