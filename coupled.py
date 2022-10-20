@@ -371,7 +371,7 @@ h.setRproject(k)
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
 # now setup R2 folders 
-h.setupRruns(write2in,run_keys,survey_keys,sequences,npcu=1)
+h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=1)
 
 #now go through and run folders 
 h.runResFwdmdls(run_keys)
