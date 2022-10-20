@@ -2041,7 +2041,7 @@ class handler:
 
         self.project = project 
         
-    def setupRruns(self, write2in, run_keys, survey_keys, seqs=[],
+    def setupRruns(self, write2in, run_keys, survey_keys, seqs=[],ncpu=None, 
                    tfunc=None, diy=[]):
         """
         Setup R2(3t) runs for 
@@ -2056,6 +2056,8 @@ class handler:
             DESCRIPTION.
         seqs : TYPE, optional
             DESCRIPTION. The default is [].
+        ncpu: int
+            Number of cores to spread the creation of R2 files across. 
         tfunc : function, optional
             DESCRIPTION. The default is None.
         diy : list, optional
@@ -2072,7 +2074,8 @@ class handler:
         None.
 
         """
-        
+        if ncpu is None: 
+            ncpu = self.ncpu 
         self.survey_keys = survey_keys 
         if not callable(write2in):
             raise Exception('Write2in should be a python function')
@@ -2170,10 +2173,11 @@ class handler:
             loop(0)
             return 
         # if using just one cpu do loop in serial 
-        if self.ncpu <= 1:
+        if ncpu <= 1:
             for k in tqdm(range(len(run_keys)),ncols=100,desc='Setting R2 files'):
                 loop(k)
             return # jump out of function here 
+        
         # otherwise run in parallel 
         Parallel(n_jobs=self.ncpu)(delayed(loop)(k) for k in tqdm(range(len(run_keys)),ncols=100,desc='Setting R2 files'))
 

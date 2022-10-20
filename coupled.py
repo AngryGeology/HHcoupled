@@ -371,13 +371,9 @@ h.setRproject(k)
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
 # now setup R2 folders 
-if 'win' in sys.platform.lower():
-    h.cpu = 1 # if on windows go single threaded for this task to avoid instability 
-h.setupRruns(write2in,run_keys,survey_keys,sequences)
+h.setupRruns(write2in,run_keys,survey_keys,sequences,npcu=1)
 
 #now go through and run folders 
-if 'win' in sys.platform.lower():
-    h.cpu = 16 # put number of cores back up to 16 
 h.runResFwdmdls(run_keys)
 data_store = h.getFwdRunResults(run_keys)
 
