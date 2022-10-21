@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Apr  4 13:46:16 2022
-Basic hydrological model of hollin hill 
+Run a coupled model to solve the VG parameters of the staithes sandstone. 
 @author: jimmy
 """
 import os, sys 
