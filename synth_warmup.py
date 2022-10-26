@@ -105,7 +105,7 @@ h = handler(dname=warmupdir, ifac=1,tlength=secinday,iobs=100,
             sim_type='solute')
 h.maxIter = 500
 h.rpmax = 10e3  
-h.drainage = 5e-2
+h.drainage = 1e-2 
 h.clearDir()
 h.setMesh(mesh)
 h.setEXEC(exec_loc)
@@ -129,7 +129,7 @@ general_type = []
 pres_node = np.array([],dtype=int) 
 
 #find nodes on left side of mesh, set as drainage boundary 
-left_side_idx = (mesh.node[:,0] == minx)
+left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] < 55)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 
@@ -192,7 +192,7 @@ h.pressure = max(pres)
 pressure_vals = [] # empty array 
 
 temp = [0]*mesh.numnp 
-pres[np.isnan(pres)] = 0 
+# pres[np.isnan(pres)] = 0 
 
 #%% step 8, write inputs for SUTRA 
 h.setupInp(times=times, 

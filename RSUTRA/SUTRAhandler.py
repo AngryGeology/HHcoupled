@@ -1296,7 +1296,7 @@ class handler:
                 if general_type[i] == 'seep':
                     line = "%i -1. 0. 0. 0. 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                 elif general_type[i]  == 'drain':
-                    line = "%i -1, 0. 0. -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
+                    line = "%i -1e8 0. 1e8 -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure,

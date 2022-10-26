@@ -102,7 +102,6 @@ data_seq = pd.DataFrame()
 sequences = [] 
 for i,f in enumerate(rfiles): 
     s = Survey(os.path.join(datadir,f),ftype='ProtocolDC') # parse survey 
-    s.fitErrorPwl(ax) # fit reciprocal error levels 
     # extract the abmn, data, error information and date 
     df = s.df[['a','b','m','n','recipMean','resError']]
     df = df.rename(columns={'recipMean':'tr',
@@ -151,13 +150,28 @@ SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='WHITBY')
 
+SSF.setPetro(ssf_polyn)
+WMF.setPetro(wmf_petro)
+
+alpha_SSF = [0.001, 0.01, 1.5] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.01, 2.0] 
+vn_SSF = [1.1, 0.05, 2.5]
+vn_WMF = [1.1, 0.05, 1.8]
+
+ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
+wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
+
+# setup materials for resitivity-gmc relationships 
+SSF.setMCparam(ssf_param)
+WMF.setMCparam(wmf_param)
+
 #%% step 3, setup handler 
 ## create handler
 h = handler(dname=mcmcdir, ifac=1,tlength=secinday,iobs=1, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
-h.maxIter = 500
+h.maxIter = 300
 h.rpmax = 5e3  
 h.drainage = 5e-2
 h.clearDir()
@@ -170,16 +184,6 @@ depths, node_depths = h.getDepths()
 #%% step 4 add materials to handler, setup parameters 
 h.addMaterial(SSF,ssf_idx)
 h.addMaterial(WMF,wmf_idx)
-
-SSF.setPetro(ssf_polyn)
-WMF.setPetro(wmf_petro)
-
-ssf_param = {'alpha':[SSF.alpha],'vn':[SSF.vn]}
-wmf_param = {'alpha':[WMF.alpha],'vn':[WMF.vn]}
-
-# setup materials for resitivity-gmc relationships 
-SSF.setMCparam(ssf_param)
-WMF.setMCparam(wmf_param)
 
 #%% step 5, boundary conditions (note not all of these are active)
 # find surface nodes

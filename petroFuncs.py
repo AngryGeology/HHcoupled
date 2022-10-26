@@ -6,9 +6,27 @@ Petrophysical functions for coupling SUTRA and R2.
 @author: jimmy
 """
 import numpy as np 
-from solveWaxSmit import solveRtWVP# , solveRtSt 
+from solveWaxSmit import solveRtWVP, solveRtSt 
 theta_param = np.genfromtxt('petroFit/theta_fit.txt')
-ssf_poly_param = np.genfromtxt('petroFit/SSF_(Disturbed)_fit.txt')
+
+def parse_fit(fname):
+    # parse fitted parameters 
+    param = {}
+    fh = open(fname,'r')
+    lines = fh.readlines()
+    fh.close() 
+    for line in lines:
+        if line =='':
+            continue 
+        info = line.split(':')
+        key = info[0]
+        values = [float(a) for a in info[-1].split()]
+        if len(values) == 1: 
+            param[key] = values[0]
+        else:
+            param[key] = np.array(values)
+    return param 
+    
 Rw = 1.013171225937183451e+01
 # saturation - waxman smit parameters (gmc)
 gparam = {1:{'theta':0.36, # zone 1 is SSF 
@@ -25,10 +43,8 @@ gparam = {1:{'theta':0.36, # zone 1 is SSF
              'n':2.74}}# wax smit parameters
 
 # saturation - waxman smit parameters (sat)
-sparam = {2:{'Rw':Rw, 
-             'cec':22.5,
-             'FF':232.321,
-             'n':2.695}}
+sparam = {1:parse_fit('petroFit/SSF_(Disturbed)_fit.txt'),
+          2:parse_fit('petroFit/WMF_(Insitu)_fit.txt')}
 
 #%% error handling 
 def rmse(d0,dm):
@@ -75,18 +91,27 @@ def ssf_petro(sat):
                     gparam[1]['n'])
     return Rt 
 
-# def wmf_petro_sat(sat):
-#     # solve in terms of native saturation 
-#     Rt = solveRtSt(sat, gparam[2]['Rw'], gparam[2]['cec'], gparam[2]['FF'], 
-#                    gparam[2]['n'])
-#     return Rt 
-
-#%% polynomial functions 
-def ssf_polyn(sat):
-    sat[sat<0.375] = 0.375
-    sat[sat>0.8] = 0.8 
-    Rt = np.polyval(ssf_poly_param,sat)
+#%% solve wmf in terms saturation 
+def wmf_petro_sat(sat):
+    # solve in terms of native saturation 
+    Rt = solveRtSt(sat, sparam[2]['Rw'], sparam[2]['cec'], sparam[2]['FF'], 
+                   sparam[2]['n'])
     return Rt 
 
+#%% solve ssf in terms of saturation with a polynomail 
+def ssf_polyn(sat):
+    min_sat = sparam[1]['min']#
+    max_sat = sparam[1]['max']
+    pfit = sparam[1]['pfit']
+    pfit0 = sparam[1]['pfit0']
+    pfit1 = sparam[1]['pfit1']
+    cidx = (sat >= min_sat) & (sat <= max_sat) # central index 
+    lidx = sat < min_sat # data left of where we actually have data 
+    ridx = sat > max_sat # data right of where we have data 
+    Rt = np.zeros_like(sat)
+    Rt[cidx] = np.polyval(pfit,sat[cidx])
+    Rt[lidx] = np.polyval(pfit0,sat[lidx])
+    Rt[ridx] = np.polyval(pfit1,sat[ridx])
+    
+    return Rt 
 
-# sat = np.array([0.926268, 0.92682,0.927427, 0.928095,0.92883,0.929639,0.93053,0.93151,0.932588,0.933775,0.93508])
