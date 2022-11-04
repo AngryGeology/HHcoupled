@@ -21,7 +21,8 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy):
 
 # get mcmc result file 
 
-df = pd.read_csv('HydroMCMC/mergedMCMClog.csv')
+# df = pd.read_csv('HydroMCMC/mergedMCMClog.csv')
+df = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/SyntheticStudy/Models/MCMC/mergedMCMClog.csv')
 nzones = 2 
 stable = df['Pt']>0
 
@@ -55,13 +56,13 @@ params = {}
 for i in range(nzones): 
     params[i] = {} 
     n = i+1 
-    axs[i].tricontourf(df['alpha_%i'%n][stable]*1000, 
+    axs[i].tricontourf(df['alpha_%i'%n][stable], 
                        df['vn_%i'%n][stable],
                        df['Pt'][stable])
     axs[i].set_xlabel('Alpha (1/m)')
     axs[i].set_ylabel('N (-)')
     # add histograms 
-    x = df['alpha_%i'%n][stable]*1000
+    x = df['alpha_%i'%n][stable]
     y = df['vn_%i'%n][stable]
     scatter_hist(x, y, axs[i], axs['hist_x%i'%i], axs['hist_y%i'%i])
     # fit a histogram 
@@ -89,7 +90,7 @@ for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt']>0) 
     for i in range(nzones): 
         n = i+1 
-        x = df['alpha_%i'%n][idx]*1000
+        x = df['alpha_%i'%n][idx]
         y = df['vn_%i'%n][idx]
         axs[i].plot(x, y)  
 

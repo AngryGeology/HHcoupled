@@ -6,7 +6,7 @@ Petrophysical functions for coupling SUTRA and R2.
 @author: jimmy
 """
 import numpy as np 
-from solveWaxSmit import solveRtWVP, solveRtSt 
+from solveWaxSmit import solveRtWVP#, solveRtSt 
 theta_param = np.genfromtxt('petroFit/theta_fit.txt')
 
 def parse_fit(fname):
@@ -72,6 +72,10 @@ def gmc2sat(gmc,theta,ps,pw=1):
     denom = pw*theta
     return numon/denom 
 
+#%% generic fitting 
+def powerLaw(x,a,k,c):
+    return (1/(a*(x**k))) + c 
+
 #%% petro functions in terms of GMC 
 def wmf_petro(sat):
     # convert saturation to GMC 
@@ -94,8 +98,12 @@ def ssf_petro(sat):
 #%% solve wmf in terms saturation 
 def wmf_petro_sat(sat):
     # solve in terms of native saturation 
-    Rt = solveRtSt(sat, sparam[2]['Rw'], sparam[2]['cec'], sparam[2]['FF'], 
-                   sparam[2]['n'])
+    Rt = powerLaw(sat, sparam[2]['a'], sparam[2]['k'], sparam[2]['c'])
+    return Rt 
+
+def ssf_petro_sat(sat):
+    # solve in terms of native saturation 
+    Rt = powerLaw(sat, sparam[1]['a'], sparam[1]['k'], sparam[1]['c'])
     return Rt 
 
 #%% solve ssf in terms of saturation with a polynomail 

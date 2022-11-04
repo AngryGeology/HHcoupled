@@ -5,7 +5,7 @@ Created on Mon Apr  4 13:46:16 2022
 Run a coupled model to solve the VG parameters of the staithes sandstone. 
 @author: jimmy
 """
-import os, sys 
+import os, sys, shutil 
 from datetime import datetime 
 import numpy as np
 import pandas as pd
@@ -31,16 +31,24 @@ from petroFuncs import ssf_petro, wmf_petro, ssf_polyn # ,wmf_petro_sat
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    
+model_dir = 'Models'
+sim_dir = os.path.join(model_dir,'HydroGeophys')
+pseudo_dir_real = os.path.join(sim_dir,'RealPseudo')
+pseudo_dir_synth = os.path.join(sim_dir,'SimPseudo')
+for d in [model_dir,sim_dir,pseudo_dir_real,pseudo_dir_synth]:
+    if not os.path.exists(d):
+        os.mkdir(d)
 
 # %% step 0, load in relevant files
-rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
+rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
 
 # read in topo data
-topo = pd.read_csv('topoData/2016-01-08.csv')
-elec = pd.read_csv('elecData/2016-01-08.csv')
+topo = pd.read_csv('Data/topoData/2016-01-08.csv')
+elec = pd.read_csv('Data/elecData/2016-01-08.csv')
 
 # read in warm up
-warmup = pd.read_csv('HydroWarmUp/warm.csv')
+warmup = pd.read_csv('Models/HydroWarmUp/warm.csv')
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
 poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
@@ -69,7 +77,7 @@ def str2dat(fname):
     
 rfiles = []
 sdates = [] # survey dates 
-for f in sorted(os.listdir('resData')):
+for f in sorted(os.listdir('Data/resData')):
     if f.endswith('.dat'):
         rfiles.append(f)
         sdates.append(str2dat(f))
@@ -90,19 +98,28 @@ for i in range(nobs):
         
 # %% step 2, create a sequence of data and estimated errors 
 fig,ax = plt.subplots()
+
 data_seq = pd.DataFrame()
-sequences = [] 
+sequences = []
 for i,f in enumerate(rfiles): 
-    s = Survey(os.path.join('resData',f),ftype='ProtocolDC') # parse survey 
+    s = Survey(os.path.join('Data/resData',f),ftype='ProtocolDC') # parse survey 
     s.fitErrorPwl(ax) # fit reciprocal error levels 
     # extract the abmn, data, error information and date 
-    df = s.df[['a','b','m','n','recipMean','resError']]
+    df = s.df[['a','b','m','n','recipMean','resError']].copy() 
     df = df.rename(columns={'recipMean':'tr',
                             'resError':'error'})
     df['sidx'] = i 
     sequences.append(df[['a','b','m','n']].values)
     data_seq = pd.concat([data_seq,df]) # append frame to data sequence 
     ax.cla() 
+    # show and save a pseudo section 
+    figp,axp = plt.subplots() 
+    s.elec = elec
+    s.elec['buried'] = False 
+    s.elec['remote'] = False 
+    s.showPseudo(axp ,vmin=10,vmax=60)
+    figp.savefig(os.path.join(pseudo_dir_real,'p_section_{:0>3d}'.format(i)))
+    plt.close(figp)
     
 plt.close(fig)
 # we will come back to these data later     
@@ -181,7 +198,7 @@ RMF.setPetro(wmf_petro)
 
 #%% step 5, setup handler 
 ## create handler
-h = handler(dname='HydroGeophys', ifac=1,tlength=secinday,iobs=1, 
+h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
@@ -299,7 +316,13 @@ for i in range(len(source_node)):
     
 ## plot infiltration 
 fig, ax = plt.subplots()
-ax.plot(TimeStamp,infil) 
+ax.plot(rdates,infil,c='b') 
+
+for date in sdates: 
+    ax.plot([date,date],[min(infil),max(infil)],color=(0.5,0.5,0.5,0.5))
+    
+ax.set_xlabel('Date')
+ax.set_ylabel('Eff.Rainfall (kg/s)')
 
 #%% step 9, setup initial conditions (read from warmup run)
 ppres = warmup['Pressure'].values 
@@ -361,7 +384,7 @@ run_keys = h.getMultiRun()
 
 
 #%% setup ResIPy project and resistivity runs 
-k = Project(dirname='HydroGeophys')
+k = Project(dirname=sim_dir)
 k.setElec(elec)
 surface = np.c_[topo['y'],topo['z']]
 k.createMesh(cl_factor=4, surface=surface)
@@ -406,9 +429,38 @@ df.to_csv(os.path.join(h.dname,'result.csv'),index=False)
 best_fit = np.argmax(likelihoods)
 ssf_alpha = alpha[best_fit]
 ssf_vn = vn[best_fit]
+best_dir = os.path.join(h.dname, h.template.format(best_fit))
 
+# save the contents of the model run that went well 
+if not os.path.exists(os.path.join(h.dname,'BestFit')):
+    os.mkdir(os.path.join(h.dname,'BestFit'))
+
+for f in os.listdir(best_dir):
+    if f == 'pargs.txt':
+        continue 
+    shutil.copy(os.path.join(best_dir,f),
+                os.path.join(h.dname,'BestFit',f))
+
+best_dir = os.path.join(h.dname,'BestFit') 
+for f in os.listdir(best_dir): 
+    if f == 'forward_model.dat':
+        continue 
+    if f == 'R2_forward.dat':
+        continue 
+    if '.dat' in f and 'forward' in f: 
+        i = int(f.replace('forward','').replace('.dat',''))
+        s = Survey(os.path.join(best_dir,f),ftype='ProtocolDC') # parse survey 
+        figp, axp = plt.subplots() 
+        s.elec = elec
+        s.elec['buried'] = False 
+        s.elec['remote'] = False 
+        s.showPseudo(axp,vmin=10,vmax=60)
+        figp.savefig(os.path.join(pseudo_dir_synth,'p_section_{:0>3d}'.format(i)))
+        axp.cla() 
+        plt.close(figp)
+        
 print(ssf_alpha,ssf_vn)
 
 #%% clear runs 
-h.clearMultiRun()
+# h.clearMultiRun()
     

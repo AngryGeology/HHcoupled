@@ -93,9 +93,10 @@ mesh.dat(os.path.join(modeldir,'mesh.dat'))
 #%% step 2 create materials 
 # STAITHES SANDSTONE 
 SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.5,name='STAITHES')
+               alpha=0.14,vn=2.22 ,name='STAITHES')
+# WHITBY MUDSTONE 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='WHITBY')
+               alpha=0.8,vn=1.09,name='WHITBY')
 
 #%% step 3, setup handler 
 ## create handler
@@ -103,9 +104,9 @@ h = handler(dname=warmupdir, ifac=1,tlength=secinday,iobs=100,
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
-h.maxIter = 500
+h.maxIter = 100
 h.rpmax = 10e3  
-h.drainage = 1e-2 
+h.drainage = 1e-8
 h.clearDir()
 h.setMesh(mesh)
 h.setEXEC(exec_loc)
@@ -129,7 +130,7 @@ general_type = []
 pres_node = np.array([],dtype=int) 
 
 #find nodes on left side of mesh, set as drainage boundary 
-left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] < 55)
+left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] > 45)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 

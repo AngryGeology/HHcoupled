@@ -27,7 +27,7 @@ from resipy import Survey, Project
 from resipy import meshTools as mt
 from resipy.r2in import write2in # needed for forward modelling 
 from SUTRAhandler import handler, material 
-from petroFuncs import ssf_petro, wmf_petro, ssf_polyn 
+from petroFuncs import ssf_petro_sat, wmf_petro_sat 
 
 # setup script variables and functions 
 secinday = 24*60*60 
@@ -61,6 +61,7 @@ elecx = elec['y'].values
 elec.loc[:,'y'] = 0 
 elec.loc[:,'x'] = elecx 
 elec.loc[:,'z'] = np.polyval(p,elecx)
+elec.to_csv(os.path.join(modeldir,'electrodes.csv'))
 
 #%% step 0.5 ,handle resistivity data 
 # get resistivity files and translate file names into dates 
@@ -146,9 +147,10 @@ minx = np.min(mesh.node[:,0]) # boundary conditions later on
 #%% step 2 create materials 
 # STAITHES SANDSTONE 
 SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.5,name='STAITHES')
+               alpha=0.14,vn=2.22 ,name='STAITHES')
+# WHITBY MUDSTONE 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='WHITBY')
+               alpha=0.8,vn=1.09,name='WHITBY')
 
 #%% step 3, setup handler 
 ## create handler
@@ -182,7 +184,7 @@ general_type = []
 pres_node = np.array([],dtype=int) 
 
 #find nodes on left side of mesh, set as drainage boundary 
-left_side_idx = (mesh.node[:,0] == minx)
+left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] > 45)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 
@@ -276,8 +278,8 @@ wmf_param = {'alpha':[WMF.alpha],'vn':[WMF.vn]}
 # setup materials for resitivity-gmc relationships 
 SSF.setMCparam(ssf_param)
 WMF.setMCparam(wmf_param)
-SSF.setPetro(ssf_polyn)
-WMF.setPetro(wmf_petro)
+SSF.setPetro(ssf_petro_sat)
+WMF.setPetro(wmf_petro_sat)
 
 h.setupMultiRun() 
 h.cpu = 1

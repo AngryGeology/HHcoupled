@@ -1296,7 +1296,7 @@ class handler:
                 if general_type[i] == 'seep':
                     line = "%i -1. 0. 0. 0. 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                 elif general_type[i]  == 'drain':
-                    line = "%i -1e8 0. 1e8 -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
+                    line = "%i 0. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i])#, self.drainage)
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure,
@@ -1903,8 +1903,8 @@ class handler:
                      'vn':['-']*self.nzones} 
             # loop through to get run param 
             for zone in range(self.nzones):
-                zidx = self.mesh.ptdf['zone'] == zone # node zone idx 
-                eidx = self.mesh.df['zone'] == zone # element zone idx 
+                zidx = self.mesh.ptdf['zone'] == (zone+1) # node zone idx 
+                eidx = self.mesh.df['zone'] == (zone+1) # element zone idx 
                 m = self.materials[zone]
                  # gather petrubed parameters 
                 if 'k' in m.MCparam.keys():
@@ -2258,11 +2258,11 @@ class handler:
                  'sat':['-']*self.nzones,
                  'alpha':['-']*self.nzones,
                  'vn':['-']*self.nzones} 
-        inrange = True # flag if parameters are within range 
+        inrange = [True]*self.nzones # flag if parameters are within range 
         # loop through to get run param 
         for zone in range(self.nzones):
-            zidx = self.mesh.ptdf['zone'] == zone # node zone idx 
-            eidx = self.mesh.df['zone'] == zone # element zone idx 
+            zidx = self.mesh.ptdf['zone'] == (zone+1) # node zone idx 
+            eidx = self.mesh.df['zone'] == (zone+1) # element zone idx 
             m = self.materials[zone]
              # gather petrubed parameters 
             if 'k' in m.MCparam.keys():
@@ -2275,7 +2275,7 @@ class handler:
                     v = ipargs['k'][zone] + stepWalk(size,m.pdist)
                 self.mesh.ptdf.loc[zidx,'perm'] = v 
                 pargs['k'][zone] = v 
-                inrange = checkRange(v, v0, v1)
+                inrange[zone] = checkRange(v, v0, v1)
             
             if 'theta' in m.MCparam.keys():
                 v0 = m.MCparam['theta'][0]
@@ -2287,7 +2287,8 @@ class handler:
                     v = ipargs['theta'][zone] + stepWalk(size,m.pdist)
                 self.mesh.df.loc[eidx,'por'] = v 
                 pargs['theta'][zone] = v 
-                inrange = checkRange(v, v0, v1)
+                if inrange[zone]: #if true check if needs changing to false 
+                    inrange[zone] = checkRange(v, v0, v1)
                 
             if 'alpha' in m.MCparam.keys():               
                 v0 = m.MCparam['alpha'][0]
@@ -2299,7 +2300,8 @@ class handler:
                     v = ipargs['alpha'][zone] + stepWalk(size,m.pdist)
                 alpha[zone] = v 
                 pargs['alpha'][zone] = v 
-                inrange = checkRange(v, v0, v1)    
+                if inrange[zone]:
+                    inrange[zone] = checkRange(v, v0, v1)    
             else:
                 alpha[zone] = m.alpha
             
@@ -2313,7 +2315,8 @@ class handler:
                     v = ipargs['vn'][zone] + stepWalk(size,m.pdist)
                 vn[zone] = v 
                 pargs['vn'][zone] = v 
-                inrange = checkRange(v, v0, v1)
+                if inrange[zone]:
+                    inrange[zone] = checkRange(v, v0, v1)
             else:
                 vn[zone] = m.vn 
             
@@ -2327,7 +2330,8 @@ class handler:
                     v = ipargs['res'][zone] + stepWalk(size,m.pdist)
                 swres[zone] = v 
                 pargs['res'][zone] = v 
-                inrange = checkRange(v, v0, v1)
+                if inrange[zone]:
+                    inrange[zone] = checkRange(v, v0, v1)
             else:
                 swres[zone] = m.res 
             
@@ -2341,12 +2345,10 @@ class handler:
                     v = ipargs['sat'][zone] + stepWalk(size,m.pdist)
                 swsat[zone] = v 
                 pargs['sat'][zone] = v 
-                inrange = checkRange(v, v0, v1)
+                if inrange[zone]:
+                    inrange[zone] = checkRange(v, v0, v1)
             else:
                 swsat[zone] = m.sat  
-                
-            if not inrange: # parameters are not stable so break the loop 
-                break 
                 
         # create directory
         to_copy_ext = ['INP21A','BCS', 'ICS', 'RST', 'BCOP', 'BCOPG', 'FIL']
@@ -2356,12 +2358,11 @@ class handler:
             ext = f.split('.')[-1]
             if ext.upper() in to_copy_ext: # add it to files which need copying 
                 to_copy.append(f)
-                
         rdir = self.createPdir(i,to_copy,pargs) # run directory 
         self.writeInp(rdir)
         self.writeVg(swres,swsat,alpha,vn,dname=rdir) 
-        
-        return pargs, rdir, inrange 
+
+        return pargs, rdir, all(inrange)
     
     def setupRparam(self, tr, write2in, survey_keys, seqs=[], 
                     tfunc = None, diy= []):
@@ -2545,6 +2546,21 @@ class handler:
                 ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
                 continue 
             
+            # double check for negatives (for some reason some slip through the mcmc proposer)
+            # neg_check = False 
+            # for key in model.keys():
+            #     for j in range(len(model[key])):
+            #         if isinstance(model[key][j],str): 
+            #             continue 
+            #         if model[key][j] < 0: 
+            #             neg_check = True 
+            # if neg_check:
+            #     accept = False 
+            #     logger('Proposed trial model has negative values!')
+            #     logger('Accept = False')
+            #     ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
+            #     continue 
+            
             # run trial parameters  
             logger('Running SUTRA model...')
             data,n = doSUTRArun(rdir,self.execpath)
@@ -2567,6 +2583,13 @@ class handler:
                 
             # compute chi^2 and likelihood values  
             d1 = data_seq['tr'].values 
+            if len(d1) != len(d0):
+                accept = False 
+                logger('Proposed model is unstable in R2!')
+                logger('Accept = False')
+                ac.append(0)
+                continue 
+            
             residuals = d0 - d1  # compare fout to 'real data' 
             
             X2 = chi2(error, residuals)
