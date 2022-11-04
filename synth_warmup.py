@@ -96,7 +96,7 @@ SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
                alpha=0.14,vn=2.22 ,name='STAITHES')
 # WHITBY MUDSTONE 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.8,vn=1.09,name='WHITBY')
+               alpha=0.01,vn=1.09,name='WHITBY')
 
 #%% step 3, setup handler 
 ## create handler
