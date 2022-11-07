@@ -30,7 +30,7 @@ from SUTRAhandler import handler, material
 secinday = 24*60*60 
 plt.close('all')
 
-exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
+exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra_s'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
     
@@ -93,10 +93,10 @@ mesh.dat(os.path.join(modeldir,'mesh.dat'))
 #%% step 2 create materials 
 # STAITHES SANDSTONE 
 SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.14,vn=2.22 ,name='STAITHES')
+               alpha=0.14,vn=2.2 ,name='STAITHES')
 # WHITBY MUDSTONE 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.01,vn=1.09,name='WHITBY')
+               alpha=0.05,vn=1.4,name='WHITBY')
 
 #%% step 3, setup handler 
 ## create handler
