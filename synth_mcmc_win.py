@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Apr  4 13:46:16 2022
-Synthetic data simulation for synthetic hill slope study 
+Synthetic data simulation for synthetic hill slope study, one mcmc chain 
 @author: jimmy
 """
 import os, sys, copy 
@@ -38,16 +38,18 @@ exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
     
-    
+chainno = int(input("Enter Chain number: "))
 #create directory structure 
 masterdir='SyntheticStudy'
 modeldir= os.path.join(masterdir,'Models')
 datadir=os.path.join(masterdir,'Data')
 mcmcdir = os.path.join(modeldir,'MCMC')
+chaindir = os.path.join(mcmcdir,'chain%i'%chainno)
 # directories should have been made already 
-for dname in [masterdir,modeldir,datadir,mcmcdir]:
+for dname in [masterdir,modeldir,datadir,mcmcdir,chaindir]:
     if not os.path.exists(dname):
         os.mkdir(dname)
+        
 
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
@@ -168,11 +170,11 @@ WMF.setMCparam(wmf_param)
 
 #%% step 3, setup handler 
 ## create handler
-h = handler(dname=mcmcdir, ifac=1,tlength=secinday,iobs=1, 
+h = handler(dname=chaindir, ifac=1,tlength=secinday,iobs=1, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
-h.maxIter = 300
+h.maxIter = 100
 h.rpmax = 5e3  
 h.drainage = 5e-2
 h.clearDir()
@@ -274,59 +276,32 @@ h.setupInp(times=times,
            pressure_node=pres_node, pressure_val=pressure_vals, 
            general_node=general_node, general_type=general_type, 
            source_val=infil[0]*(dx/2))
+
+# setup baseline files in handler directory 
 h.writeInp() # write input without water table at base of column
 h.writeBcs(times, source_node, fluidinp, tempinp)
 h.writeIcs(pres, temp) # INITIAL CONDITIONS 
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
-
-h.showSetup() 
+h.clearMultiRun()
+# h.showSetup() 
 # h.runSUTRA()
 
 #%% step 9 setup resipy project etc ... 
-k = Project(dirname=mcmcdir)
+k = Project(dirname=chaindir)
 k.setElec(elec)
 k.createMesh(cl_factor=4)
+h.setRproject(k)
+h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
 
 #%% step 10, run mcmc chains --- this needs testing 
 nchain = 10 # also the number of CPU to be used. 
 nstep = 10#00
-# print('Running MCMC chain...',end='') # uncomment to run single chain 
-# log, ar = h.mcmc(nstep,0.25)
-# print('Done.')
-
-# multiple chains 
-handlers = [copy.copy(h) for i in range(nchain)]
-kprojects = [copy.copy(k) for i in range(nchain)] # create a new instance of resipy project for each chain/handler 
-for i,hand in enumerate(handlers):
-    dpath = os.path.join(h.dname,'chain%i'%i)
-    hand.setDname(dpath)
-    # setup baseline files in each handler directory 
-    print(hand.dname)
-    hand.writeInp() # write inputs for each handler so that there are the files needed in the main directory of each chain 
-    hand.writeBcs(times, source_node, fluidinp, tempinp)
-    hand.writeIcs(pres, temp) # INITIAL CONDITIONS 
-    hand.writeVg()
-    hand.writeFil(ignore=['BCOP', 'BCOPG'])
-    hand.clearMultiRun() # clear previous runs 
-    kprojects[i].setwd(hand.dname)
-    hand.setRproject(kprojects[i])
-    hand.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
-    
-print('RUNNING MCMC CHAINS...',end='')
-pout = Parallel(n_jobs=nchain)(delayed(handlers[i].mcmc)(nstep,0.25) for i in range(nchain))
-print('DONE.')
-
-mergedchainlog = pd.DataFrame()
-for i,p in enumerate(pout):
-    chainlog = pd.DataFrame(p[0])#
-    chainlog['chain'] = i 
-    mergedchainlog = pd.concat([mergedchainlog,chainlog])
-    # hand.clearMultiRun()
-
-
-# save results 
-mergedchainlog.to_csv(os.path.join(mcmcdir,'mergedMCMClog.csv'),index=False)
+print('Running MCMC chain...',end='') # uncomment to run single chain 
+chainlog, ar = h.mcmc(nstep,0.25)
+df = pd.DataFrame(chainlog)
+df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
+print('Done.')
 
 #%% clear runs 
 h.clearMultiRun()
