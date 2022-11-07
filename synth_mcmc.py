@@ -146,10 +146,10 @@ minx = np.min(mesh.node[:,0]) # boundary conditions later on
 #%% step 2 create materials 
 # STAITHES SANDSTONE 
 SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.14,vn=2.22 ,name='STAITHES')
+               alpha=0.14,vn=2.2 ,name='STAITHES')
 # WHITBY MUDSTONE 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.8,vn=1.09,name='WHITBY')
+               alpha=0.05,vn=1.4,name='WHITBY')
 
 SSF.setPetro(ssf_petro_sat)
 WMF.setPetro(wmf_petro_sat)
@@ -157,7 +157,7 @@ WMF.setPetro(wmf_petro_sat)
 alpha_SSF = [0.001, 0.05, 1.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
 alpha_WMF = [0.001, 0.05, 1.0] 
 vn_SSF = [1.1, 0.05, 2.5]
-vn_WMF = [1.05, 0.05, 2.0]
+vn_WMF = [1.1, 0.05, 2.0]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
@@ -290,7 +290,7 @@ k.createMesh(cl_factor=4)
 
 #%% step 10, run mcmc chains --- this needs testing 
 nchain = 10 # also the number of CPU to be used. 
-nstep = 120
+nstep = 1000
 # print('Running MCMC chain...',end='') # uncomment to run single chain 
 # log, ar = h.mcmc(nstep,0.25)
 # print('Done.')
