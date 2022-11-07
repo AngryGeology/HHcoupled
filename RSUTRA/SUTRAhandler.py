@@ -17,6 +17,14 @@ from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 
 secinday = 24*60*60 
 
+# function for writing log outputs to 
+def logger(text,logf):
+    fh = open(logf,'a')
+    fh.write(text)
+    fh.write('\n')
+    fh.close() 
+        
+
 #%% matric potential functions 
 def normparam(val,sat_val,res_val) -> float: 
     """ normalised parameter
@@ -2416,12 +2424,7 @@ class handler:
         logf = os.path.join(self.dname, 'chain.log')
         fh = open(logf,'w')
         fh.close()
-        def logger(text):
-            fh = open(logf,'a')
-            fh.write(text)
-            fh.write('\n')
-            fh.close() 
-        
+
         # setup dataframe to log mcmc chain 
         self.chainlog = {}
         self.chainlog['run'] = [i for i in range(nsteps)]
@@ -2445,12 +2448,12 @@ class handler:
                 nparam += 1 
                 
         # get starting place and set starting parameters for each mcmc chain 
-        logger('______Starting MCMC search_______')
+        logger('______Starting MCMC search_______',logf)
         self.nruns = 0 # number of model runs 
         naccept = 0 # number of accepted models 
         stable = False # flag if initial model is stable, it must be in order to 
         # continue to proposing new models in the mcmc chain. 
-        logger('Generating initial model')
+        logger('Generating initial model',logf)
         c = 0 # counter for trial model, ensures we dont get stuck in a infinite loop 
         maxc = 10
         # run the first model 
@@ -2461,32 +2464,32 @@ class handler:
             c+=1 
             model, rdir, stable = self.mcmcProposer(None, 0,True)  # propose starting model 
             if not stable: # restart loop if not stable  
-                logger('Initial model out of parameter range, selecting new parameters')
+                logger('Initial model out of parameter range, selecting new parameters',logf)
                 continue 
             # run init parameters 
-            logger('Running SUTRA model...')
+            logger('Running SUTRA model...',logf)
             data,n = doSUTRArun(rdir,self.execpath)
             if n < self.resultNsteps: # n does not meet the expected number of steps 
                 stable = False 
-                logger('Initial SUTRA model is unstable, attempting to run again with new starting parameters')
+                logger('Initial SUTRA model is unstable, attempting to run again with new starting parameters',logf)
                 continue 
-            logger('Done.')
+            logger('Done.',logf)
         
         if not stable: # if no stable model is found for start then we must exit 
-            logger('Initial trial is unstable solution! Try a different starting model') # dont accept the trial model 
+            logger('Initial trial is unstable solution! Try a different starting model',logf) # dont accept the trial model 
             return self.chainlog, naccept/nsteps
         
         # convert result to resistivity for R2/(or R3t) and setup forward modelling directory 
-        logger('Writing out resistivity files')
+        logger('Writing out resistivity files',logf)
         self.setupRruns(self.write2in, [0], self.survey_keys, self.seqs,
                         tfunc=self.tfunc, diy=self.diy)
 
         # now run resistivity code 
-        logger('Running forward resistivity models')
+        logger('Running forward resistivity models',logf)
         self.runResFwdmdl(0)
         
         # get result 
-        logger('Retrieving forward resistivity runs')
+        logger('Retrieving forward resistivity runs',logf)
         data_seq = self.getFwdRunResult(0)
         
         # compute initial chi^2 value 
@@ -2503,8 +2506,8 @@ class handler:
         self.chainlog['Accept'][0] = True 
         self.chainlog['Stable'][0] = True 
         
-        logger('\nRun %i'%0)
-        logger('Pi = %f'%Pi)
+        logger('\nRun %i'%0,logf)
+        logger('Pi = %f'%Pi,logf)
 
         logoutput = 'Parameters: \n' 
         for j in range(nparam):
@@ -2513,8 +2516,8 @@ class handler:
             self.chainlog['%s_%i'%(key,zone+1)][0] = model[key][zone]
             logoutput += '%s_%i = %f\t'%(key,zone,model[key][zone])
                
-        logger(logoutput) 
-        logger('Done.')
+        logger(logoutput,logf) 
+        logger('Done.',logf)
         
         
         # setup parameters for altering the acceptance rate on the fly 
@@ -2522,7 +2525,7 @@ class handler:
         a_fac = 1 # alpha factor. modified according to the target acceptance rate 
         ac = [] # empty list for acceptance chain 
         
-        logger('Starting search from initial model')
+        logger('Starting search from initial model',logf)
         
         # for loop goes here 
         for i in range(1,nsteps):
@@ -2533,7 +2536,7 @@ class handler:
                     if 'pargs.txt' in os.listdir(dpath):
                         shutil.rmtree(dpath)
                     
-            logger('\nRun %i'%i)
+            logger('\nRun %i'%i,logf)
             self.nruns += 1 
                 
             accept = False 
@@ -2541,8 +2544,8 @@ class handler:
             trial, rdir, inrange = self.mcmcProposer(model, i)
             if not inrange: # check trial is within limits (otherwise move on)
                 accept = False 
-                logger('Proposed trial model is out of limits')
-                logger('Accept = False')
+                logger('Proposed trial model is out of limits',logf)
+                logger('Accept = False',logf)
                 ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
                 continue 
             
@@ -2556,23 +2559,23 @@ class handler:
             #             neg_check = True 
             # if neg_check:
             #     accept = False 
-            #     logger('Proposed trial model has negative values!')
-            #     logger('Accept = False')
+            #     logger('Proposed trial model has negative values!',logf)
+            #     logger('Accept = False',logf)
             #     ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
             #     continue 
             
             # run trial parameters  
-            logger('Running SUTRA model...')
+            logger('Running SUTRA model...',logf)
             data,n = doSUTRArun(rdir,self.execpath)
             if n < self.resultNsteps: # n does not meet the expected number of steps 
                 accept = False 
-                logger('Proposed model is unstable!')
-                logger('Accept = False')
+                logger('Proposed model is unstable!',logf)
+                logger('Accept = False',logf)
                 ac.append(0)
                 continue 
             
             # convert result to resistivity for R2/(or R3t) and setup forward modelling directory 
-            logger('Running R2 models')
+            logger('Running R2 models',logf)
             self.setupRruns(self.write2in, [i], self.survey_keys, self.seqs,
                             tfunc=self.tfunc, diy=self.diy)
     
@@ -2585,8 +2588,8 @@ class handler:
             d1 = data_seq['tr'].values 
             if len(d1) != len(d0):
                 accept = False 
-                logger('Proposed model is unstable in R2!')
-                logger('Accept = False')
+                logger('Proposed model is unstable in R2!',logf)
+                logger('Accept = False',logf)
                 ac.append(0)
                 continue 
             
@@ -2595,7 +2598,7 @@ class handler:
             X2 = chi2(error, residuals)
             Pt = normLike(error, residuals)
             
-            logger('Pt = %f, Pi = %f'%(Pt,Pi))
+            logger('Pt = %f, Pi = %f'%(Pt,Pi),logf)
             
             ## adaptation to metropolis ## 
             if target_ar < 0: # perform default metropolis 
@@ -2613,7 +2616,7 @@ class handler:
                 if a_fac >= 1: # cap alpha factor at 1 
                     a_fac = 1 
                 else: # if alpha factor < 1 mention it in console 
-                    logger('Acceptance probability adjusted*')
+                    logger('Acceptance probability adjusted*',logf)
             
             ## metropolis algorithm (adapted) ##
             alpha = (Pt/Pi)*a_fac
@@ -2623,7 +2626,7 @@ class handler:
             elif alpha > mu:
                 accept = True  
                 
-            logger('Alpha = %f, mu = %f'%(alpha,mu))
+            logger('Alpha = %f, mu = %f'%(alpha,mu),logf)
                 
             self.chainlog['Chi^2'][i] = X2 
             self.chainlog['Pt'][i] = Pt 
@@ -2638,20 +2641,20 @@ class handler:
                 zone = pzones[j] # add one to get index starting at 1 
                 self.chainlog['%s_%i'%(key,zone+1)][i] = trial[key][zone]
                 logoutput += '%s_%i = %f\t'%(key,zone,trial[key][zone])
-            logger(logoutput) 
+            logger(logoutput,logf) 
                 
             # decide if to accept model 
             if accept:
-                logger('Accept = True')
+                logger('Accept = True',logf)
                 model = trial.copy() # trial now becomes current model  
                 Pi = Pt 
                 naccept += 1 
                 ac.append(1)
             else:
                 ac.append(0)
-                logger('Accept = False')
+                logger('Accept = False',logf)
             
-        logger('Max steps reached: End of chain')
+        logger('Max steps reached: End of chain',logf)
             
         return self.chainlog, naccept/nsteps
     
