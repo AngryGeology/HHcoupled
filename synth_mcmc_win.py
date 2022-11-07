@@ -296,7 +296,7 @@ h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
 
 #%% step 10, run mcmc chains --- this needs testing 
 nchain = 10 # also the number of CPU to be used. 
-nstep = 10#00
+nstep = 1000
 print('Running MCMC chain...',end='') # uncomment to run single chain 
 chainlog, ar = h.mcmc(nstep,0.25)
 df = pd.DataFrame(chainlog)
