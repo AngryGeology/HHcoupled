@@ -651,7 +651,7 @@ def runR2runs(wd,execpath=None,surrogate='resistivity.dat',return_data=False):
 
 #%% define a material for sutra 
 class material:
-    convert_cons= {'u':8.9e-4, #14.0e-4, # Pa.s / 8.9e-4 
+    convert_cons= {'u':1.307e-3, #kg/ms  
                    'p':1000, #kg/ms^3 
                    'g':9.81} #m/s^2 
     
@@ -1294,6 +1294,8 @@ class handler:
                 general_type = [None]*NPBG 
             if self.pressure is None: 
                 self.pressure = np.max(pressure_val)
+            if isinstance(self.pressure,int) or isinstance(self.pressure,float):
+                self.pressure = [self.pressure]*len(general_node)
             
             fname21a = self.name+'.inp21A'
             fh.write("# Start new dataset 21A here\n")
@@ -1304,11 +1306,11 @@ class handler:
                 if general_type[i] == 'seep':
                     line = "%i -1. 0. 0. 0. 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                 elif general_type[i]  == 'drain':
-                    line = "%i 0. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i])#, self.drainage)
+                    line = "%i 0. 0. 0. -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
-                                                                                   self.pressure,
-                                                                                   self.pressure*10)
+                                                                                   self.pressure[i],
+                                                                                   self.pressure[i]+9180)
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     
@@ -1538,7 +1540,21 @@ class handler:
         if ERROR_FLAG:
             raise Exception('Looks like SUTRA run has failed, check inputs!')
             
-    def showSetup(self):
+    def showSetup(self,save=False):
+        """
+        Show the model setup. 
+
+        Parameters
+        ----------
+        save : bool, optional
+            If true then the figure is closed but saved to the working 
+            directory. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
         source_node = self.setupinp['source_node']
         pressure_node = self.setupinp['pressure_node'] 
         temp_node = self.setupinp['temp_node'] 
@@ -1553,7 +1569,9 @@ class handler:
         fig.set_size_inches(12.0 , 8)
 
         # get node positions 
-        self.mesh.show(ax=ax, attr='zone',electrodes=False)
+        self.mesh.show(ax=ax, attr='zone',electrodes=False,
+                       xlim=[min(self.mesh.node[:,0]),max(self.mesh.node[:,0])])
+        
         nx = self.mesh.node[:,0]
         nz = self.mesh.node[:,2]
         
@@ -1570,6 +1588,10 @@ class handler:
             ax.scatter(nx[general_node-1],nz[general_node-1],c='k',label='general node')
         
         ax.legend() 
+        
+        if save: 
+            fig.savefig(os.path.join(self.dname,'setup.png'))
+            plt.close(fig)
             
     #get result functions 
     def getNod(self):
@@ -1784,7 +1806,8 @@ class handler:
     # correct resistivity for temperature? 
     def callTempCorrect(self,tfunc,diys):
         """
-        Correct resistivity for temperature changes 
+        Correct resistivity for temperature changes (or rather put the corrected
+        resistivities back to thier insitu values). 
 
         Parameters
         ----------
@@ -1792,6 +1815,9 @@ class handler:
             Fuction which takes resistivity as its first argument and date in 
             year as second non optional argument, and cell depths as its third 
             argument. 
+        diys : array like 
+            list of the julian day in year for each resistivity survey, should be 
+            between 1 and 365. 
 
         """
         if 'depths' not in self.mesh.ptdf.keys():
@@ -2146,7 +2172,7 @@ class handler:
                     zidx = zone == m.zone 
                     resNode[zidx] = m.petro(satNode[zidx])
                     if tcorrect:
-                        resNode[zidx] = tfunc(resNode[zidx], depths_node, diy[i])
+                        resNode[zidx] = tfunc(resNode[zidx], depths_node[zidx], diy[count])
 
                 # convert saturation to resistivity #
                 ifunc = LinearNDInterpolator(np.c_[mx,mz],resNode) # interpolate to resipy mesh 

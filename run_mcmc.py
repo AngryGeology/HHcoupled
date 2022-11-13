@@ -28,21 +28,31 @@ from resipy import Survey, Project
 from resipy.r2in import write2in # needed for forward modelling 
 from resipy import meshTools as mt
 from SUTRAhandler import handler, material, secinday, normLike
-from petroFuncs import ssf_petro, wmf_petro, wmf_petro_sat, ssf_polyn
+from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect 
 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    
+chainno = int(input("Enter Chain number: "))
+#create directory structure 
+masterdir = 'Models'
+modeldir = os.path.join(masterdir,'HydroMCMC')
+chaindir = os.path.join(modeldir,'chain%i'%chainno)
+# directories should have been made already 
+for dname in [masterdir,modeldir,chaindir]:
+    if not os.path.exists(dname):
+        os.mkdir(dname)
 
 # %% step 0, load in relevant files
-rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
+rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
 
 # read in topo data
-topo = pd.read_csv('topoData/2016-01-08.csv')
-elec = pd.read_csv('elecData/2016-01-08.csv')
+topo = pd.read_csv('Data/topoData/2016-01-08.csv')
+elec = pd.read_csv('Data/elecData/2016-01-08.csv')
 
 # read in warm up
-warmup = pd.read_csv('HydroWarmUp/warm.csv')
+warmup = pd.read_csv('Models/HydroWarmUp/warm.csv')
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
 poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
@@ -69,12 +79,18 @@ def str2dat(fname):
     dt = datetime.strptime(string, "%Y-%m-%d")
     return dt 
     
-rfiles = []
+rfiles = [] # resistivity files 
 sdates = [] # survey dates 
-for f in sorted(os.listdir('resData')):
+sdiy = [] 
+for f in sorted(os.listdir('Data/resData')):
     if f.endswith('.dat'):
         rfiles.append(f)
+        dt = str2dat(f)
         sdates.append(str2dat(f))
+        # compute day in year 
+        year = dt.year 
+        ref_dt = datetime(year-1,12,31)
+        sdiy.append((dt - ref_dt).days)  
         
 # find times when resistivity and rainfall data are there
 nobs = len(rainfall)
@@ -97,7 +113,7 @@ fig,ax = plt.subplots()
 data_seq = pd.DataFrame()
 sequences = [] 
 for i,f in enumerate(rfiles): 
-    s = Survey(os.path.join('resData',f),ftype='ProtocolDC') # parse survey 
+    s = Survey(os.path.join('Data/resData',f),ftype='ProtocolDC') # parse survey 
     s.fitErrorPwl(ax) # fit reciprocal error levels 
     # extract the abmn, data, error information and date 
     df = s.df[['a','b','m','n','recipMean','resError']]
@@ -178,10 +194,10 @@ DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
 RMF = material(Ksat=0.08,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
-SSF.setPetro(ssf_polyn)
-WMF.setPetro(wmf_petro)
-DOG.setPetro(ssf_petro)
-RMF.setPetro(wmf_petro)
+SSF.setPetro(ssf_petro_sat)
+WMF.setPetro(wmf_petro_sat)
+DOG.setPetro(ssf_petro_sat)
+RMF.setPetro(wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
 alpha_SSF = [0.001, 0.01, 1.5] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
@@ -197,7 +213,7 @@ WMF.setMCparam(wmf_param)
 
 #%% step 5, setup handler 
 ## create handler
-h = handler(dname='HydroMCMC', ifac=1,tlength=secinday,iobs=1, 
+h = handler(dname=chaindir, ifac=1,tlength=secinday,iobs=1, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
@@ -331,59 +347,28 @@ h.writeIcs(pres, temp) # INITIAL CONDITIONS
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
 
-h.showSetup() 
+h.showSetup(True) 
 
 # run sutra 
 # h.runSUTRA()  # run
 # h.getResults()  # get results
 
 #%% Create corresponding R2 run parameters 
-k = Project(dirname='HydroMCMC')
+k = Project(dirname=chaindir)
 k.setElec(elec)
 surface = np.c_[topo['y'],topo['z']]
 k.createMesh(cl_factor=4, surface=surface)
 
 h.setRproject(k)
-h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
+h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences, 
+              tfunc=temp_uncorrect, diy=sdiy)
 
 #%% run MCMC 
  # single chain 
-nchain = 10 
-nstep = 100
-# print('Running MCMC chain...',end='') # uncomment to run single chain 
-# log, ar = h.mcmc(nstep,0.25)
-# print('Done.')
+nstep = 10
+print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
+chainlog, ar = h.mcmc(nstep,0.25)
+df = pd.DataFrame(chainlog)
+df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
+print('Done.')
 
-# multiple chains 
-handlers = [copy.copy(h) for i in range(nchain)]
-for i,hand in enumerate(handlers):
-    dpath = os.path.join(h.dname,'chain%i'%i)
-    hand.setDname(dpath)
-    
-for hand in handlers:
-    print(hand.dname)
-    hand.writeInp() # write inputs for each handler so that there are the files needed in the main directory of each chain 
-    hand.writeBcs(times, source_node, fluidinp, tempinp)
-    hand.writeIcs(pres, temp) # INITIAL CONDITIONS 
-    hand.writeVg()
-    hand.writeFil(ignore=['BCOP', 'BCOPG'])
-    hand.clearMultiRun()
-    
-print('RUNNING MCMC CHAINS...',end='')
-pout = Parallel(n_jobs=nchain)(delayed(handlers[i].mcmc)(nstep,0.25) for i in range(nchain))
-print('DONE.')
-
-mergedchainlog = pd.DataFrame()
-for i,p in enumerate(pout):
-    chainlog = pd.DataFrame(p[0])#
-    chainlog['chain'] = i 
-    mergedchainlog = pd.concat([mergedchainlog,chainlog])
-    # hand.clearMultiRun()
-
-
-#%% save results 
-mergedchainlog.to_csv('HydroMCMC/mergedMCMClog.csv',index=False)
-
-#%% clear runs 
-h.clearMultiRun()
-    

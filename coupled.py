@@ -26,7 +26,8 @@ from resipy.r2in import write2in # needed for forward modelling
 from resipy import meshTools as mt
 from SUTRAhandler import handler, material, secinday, normLike
 # from SUTRAhandler import invVGcurve
-from petroFuncs import ssf_petro, wmf_petro, ssf_polyn # ,wmf_petro_sat  
+from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect
+plt.close('all')
 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
@@ -75,12 +76,18 @@ def str2dat(fname):
     dt = datetime.strptime(string, "%Y-%m-%d")
     return dt 
     
-rfiles = []
+rfiles = [] # resistivity files 
 sdates = [] # survey dates 
+sdiy = [] 
 for f in sorted(os.listdir('Data/resData')):
     if f.endswith('.dat'):
         rfiles.append(f)
+        dt = str2dat(f)
         sdates.append(str2dat(f))
+        # compute day in year 
+        year = dt.year 
+        ref_dt = datetime(year-1,12,31)
+        sdiy.append((dt - ref_dt).days)  
         
 # find times when resistivity and rainfall data are there
 nobs = len(rainfall)
@@ -126,7 +133,7 @@ plt.close(fig)
 
 # %% step 3, setup/create the mesh for the hydrological model 
 # create quad mesh
-moutput = mt.quadMesh(elec['x'], elec['z'], elemx=1, pad=0, fmd=10,zf=1.2,zgf=1.1)
+moutput = mt.quadMesh(elec['x'], elec['z'], elemx=1, pad=5, fmd=10,zf=1.2,zgf=1.1)
 mesh = moutput[0]  # ignore the other output from meshTools here
 numel = mesh.numel  # number of elements
 # say something about the number of elements
@@ -182,19 +189,19 @@ maxx = np.max(mesh.node[:,0]) # these max/min values will be used for ...
 minx = np.min(mesh.node[:,0]) # boundary conditions later on 
 
 #%% step 4 create materials 
-SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.5,name='STAITHES')
+SSF = material(Ksat=0.14e10,theta_res=0.06,theta_sat=0.38,
+               alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.14e0,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
-SSF.setPetro(ssf_polyn)
-WMF.setPetro(wmf_petro)
-DOG.setPetro(ssf_petro)
-RMF.setPetro(wmf_petro)
+SSF.setPetro(ssf_petro_sat)
+WMF.setPetro(wmf_petro_sat)
+DOG.setPetro(ssf_petro_sat)
+RMF.setPetro(wmf_petro_sat)
 
 #%% step 5, setup handler 
 ## create handler
@@ -208,7 +215,8 @@ h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
 h.setEXEC(exec_loc)
-
+h.clearMultiRun()
+    
 ## compute cell depths 
 depths, node_depths = h.getDepths()
 
@@ -227,69 +235,58 @@ source_node += 1
 
 general_node = np.array([],dtype=int)
 general_type = []
-pres_node = np.array([],dtype=int) 
+pres_node = []
 
 # find nodes on right side of mesh 
 b1902x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-106.288)**2))]
-right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
-# right_side_idx = (mesh.node[:,0] == b1902x) & (zone_node == 2)
+# right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
+right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = 82.4 
+right_side_wt = right_side_topo - 5  
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
-# pres_node = np.append(pres_node, right_node + 1) 
+# compute pressure on right hand side of mesh 
+right_side_bl= right_side_wt - mesh.node[right_node][:,2]
+right_pressure_val = max(9810*right_side_bl)
 
-cutoff = 50
-#find nodes on left side of mesh, set as drainage boundary below 55 od 
-left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] < cutoff)
+#find nodes on left side of mesh, set as drainage boundary 
+left_side_idx = (mesh.node[:,0] == minx)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 
 general_type = general_type + ['seep']*len(left_node)
-
-#find nodes on left side of mesh, set as seepage boundary above 55 od 
-left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] > cutoff)
-left_side_node = mesh.node[left_side_idx]
-dist, left_node = tree.query(left_side_node[:,[0,2]])
-general_node = np.append(general_node,left_node + 1) 
-general_type = general_type + ['seep']*len(left_node)
+pres_node = pres_node + [0]*len(left_node)
 
 # hold pressure at borehole 1901 
-b1901_wt = 60.0 
 b1901x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-26.501)**2))]
-b1901_idx = (mesh.node[:,0] == b1901x) & (zone_node==1)
+b1901_idx = (mesh.node[:,0] == b1901x)
 b1901_node = mesh.node[b1901_idx]
 b1901_topo = max(b1901_node[:,2])
+b1901_wt = b1901_topo - 5.7
 b1901_delta = b1901_topo - b1901_wt 
 b1901_node_sat = b1901_node[b1901_node[:,2]<(b1901_topo-b1901_delta)]
 dist, b1901_node = tree.query(b1901_node_sat[:,[0,2]])
-# pres_node = np.append(pres_node, b1901_node+1)
+b1901_bl= b1901_wt - mesh.node[b1901_node][:,2]
+b1901_pressure = max(9810*b1901_bl)
 
-# find nodes at base of mesh to hold a minimum pressure 
+# find nodes at base of mesh 
 max_depth = max(cell_depths)+1
 dist, base_node = tree.query(np.c_[xz[0], xz[1]-max_depth])
+# pres_node = np.append(pres_node,base_node+1)
 general_node = np.append(general_node, base_node+1)
 general_type = general_type + ['pres']*len(base_node)
-
-# find nodes at base of ssf 
-ssf_x = np.unique(mesh.node[:,0][zone_node==1])
-ssf_z = np.zeros_like(ssf_x)
-for i,x in enumerate(ssf_x):
-    idx = (mesh.node[:,0]==x) & (zone_node==1)
-    z = mesh.node[:,2][idx]
-    ssf_z[i] = np.min(z)
-dist, ssf_base_node = tree.query(np.c_[ssf_x, ssf_z])
-# pres_node = np.append(pres_node, ssf_base_node+1) 
+p = np.polyfit([b1901x,b1902x],[b1901_pressure,right_pressure_val],1)
+X = mesh.node[:,0][base_node]
+base_pressures = np.polyval(p, X)
+pres_node = pres_node + base_pressures.tolist()
 
 # find mid points for computing cross sectional area for infiltration 
 dx = np.zeros(len(xz[0]))
 dx[0] = np.abs(xz[0][1] - xz[0][0])
 for i in range(1,len(xz[0])):
     dx[i] = np.abs(xz[0][i] - xz[0][i-1])
-    
-# that should be the mesh setup now
 
 # %% step 8, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
@@ -309,7 +306,7 @@ fluidinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid input
 tempinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid temperature
 surftempinp = np.zeros((len(TimeStamp), len(source_node)))  # surface temperature
 for i in range(len(source_node)):
-    m = dx[i]/2
+    m = dx[i]
     fluidinp[:, i] = infil*m
     tempinp[:, i] = Temps
     surftempinp[:, i] = Temp_surface
@@ -333,20 +330,14 @@ nfunc = NearestNDInterpolator(ppoints, ppres)
 pres = ifunc(ipoints)
 nanidx = np.isnan(pres)
 pres[nanidx] = nfunc(ipoints[nanidx])
-pressure_vals = None 
-
-# compute pressure on right hand side of mesh 
-right_side_bl= right_side_wt - mesh.node[right_node][:,2]
-right_pressure_val = (9810*right_side_bl)
-h.pressure = max(right_pressure_val)
-# h.cold = False 
 
 #%% step 10, write inputs for SUTRA and run 
 h.setupInp(times=times, 
            source_node=source_node, 
-           pressure_node=pres_node, pressure_val=pressure_vals, 
+           # pressure_node=pres_node, pressure_val=pressure_vals, 
            general_node=general_node, general_type=general_type, 
            source_val=infil[0]*(dx/2))
+h.pressure = pres_node
 h.writeInp() # write input without water table at base of column
 h.writeBcs(times, source_node, fluidinp, tempinp)
 temp = [0]*mesh.numnp 
@@ -362,9 +353,9 @@ h.getResults()  # get results
 
 #%% create MC runs 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = np.linspace(0.05, 0.4,15)
+alpha_SSF = np.linspace(0.005, 0.4,15)
 alpha_WMF = np.linspace(0.01, 0.1,10)
-vn_SSF = np.linspace(1.2, 2,10)
+vn_SSF = np.linspace(1.05, 2,15)
 vn_WMF = np.linspace(1.2, 2,5)
 
 a0,n0 = np.meshgrid(alpha_SSF,vn_SSF)# ,alpha_WMF,vn_WMF)
@@ -394,7 +385,12 @@ h.setRproject(k)
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
 # now setup R2 folders 
-h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=1)
+if 'win' in sys.platform.lower():
+    h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=1,
+                 tfunc=temp_uncorrect,diy=sdiy) 
+else:
+    h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=h.cpu,
+                 tfunc=temp_uncorrect,diy=sdiy) 
 
 #now go through and run folders 
 h.runResFwdmdls(run_keys)

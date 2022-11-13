@@ -106,20 +106,65 @@ def ssf_petro_sat(sat):
     Rt = powerLaw(sat, sparam[1]['a'], sparam[1]['k'], sparam[1]['c'])
     return Rt 
 
-#%% solve ssf in terms of saturation with a polynomail 
-def ssf_polyn(sat):
-    min_sat = sparam[1]['min']#
-    max_sat = sparam[1]['max']
-    pfit = sparam[1]['pfit']
-    pfit0 = sparam[1]['pfit0']
-    pfit1 = sparam[1]['pfit1']
-    cidx = (sat >= min_sat) & (sat <= max_sat) # central index 
-    lidx = sat < min_sat # data left of where we actually have data 
-    ridx = sat > max_sat # data right of where we have data 
-    Rt = np.zeros_like(sat)
-    Rt[cidx] = np.polyval(pfit,sat[cidx])
-    Rt[lidx] = np.polyval(pfit0,sat[lidx])
-    Rt[ridx] = np.polyval(pfit1,sat[ridx])
+#%% temperature correction 
+def temp_model(day, z, Tm=10.3, dT=15.54, d=2.26, phi=-1.91):
+    """Fit a model to seasonal tempature variation. Default parameters are correct
+    for Hollin Hill. 
     
-    return Rt 
+    Parameters
+    ------------
+    day: float, np array
+        Julian day
+    z: float, np array
+        Depth
+    Tm: float
+        Annual mean temperature
+    dT: float
+        The peak-to-trough amplitude of the temperature variation ΔT
+    d: float
+        A characteristic depth d at which ΔT has decreased by 1/e
+    phi: float
+        A phase offset φ to bring surface and air temperature into phase
+    
+    Returns
+    -----------
+    Tmodel(t,z): float, np array
+        Temperature model 
+        
+    Notes
+    -----------
+    From Ulhemann et al (2017) - "From the field data, we obtained 
+    Tmean = 10.03°C, ΔT = 15.54°C, d = 2.26 m, and ϕ =1.91."
+    
+        
+    """
+    Tmdl = (dT/2)*np.exp(-z/d)*np.sin(((2*np.pi*day)/365)+phi-(z/d)) 
+    return Tm + Tmdl
+
+def temp_uncorrect(res0,depth,day, tc=-2,Tstd=20):
+    """
+    Put lab derived resistivity back in terms of in field resistivity. 
+
+    Parameters
+    ----------
+    res0 : nd array 
+        DESCRIPTION.
+    depth : float 
+        DESCRIPTION.
+    day : float, int 
+        DESCRIPTION.
+    tc : float, int, optional
+        DESCRIPTION. The default is -2.
+    Tstd : float, int, optional
+        DESCRIPTION. The default is 20.
+
+    Returns
+    -------
+    Rf: nd array 
+        Uncorrected resistivity. 
+
+    """
+    Tmdl = temp_model(day, depth)
+    rhs = 1 + ((tc/100)*(Tstd-Tmdl))
+    return res0/rhs 
 

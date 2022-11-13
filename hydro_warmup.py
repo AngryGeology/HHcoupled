@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Apr  4 13:46:16 2022
-Basic hydrological model of hollin hill 
+Hydrological model of Hollin Hill warm up period. 5 years at constant 5mm 
+rainfall. 
 @author: jimmy
 """
 import os
@@ -32,15 +33,24 @@ plt.close('all')
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    
+    
+model_dir = 'Models'
+sim_dir = os.path.join(model_dir,'HydroWarmUp')
+for d in [model_dir,sim_dir]:
+    if not os.path.exists(d):
+        os.mkdir(d)
 
 # %% step 0, load in relevant files
-rainfall = pd.read_csv(os.path.join('Rainfall', 'COSMOS_2015-2016.csv'))
+rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
 
 rainfall = pd.concat([rainfall[::2]]*5).reset_index()
 # read in topo data
-topo = pd.read_csv('topoData/2016-01-08.csv')
+topo = pd.read_csv('Data/topoData/2016-01-08.csv')
 
-rainfall.loc[:,'EFF_RAIN'] = 5 
+
+rainfall.loc[0:int(len(rainfall)/2),'EFF_RAIN'] = 0
+rainfall.loc[int(len(rainfall)/2):,'EFF_RAIN'] = 5
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
 poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
@@ -52,7 +62,7 @@ minx = np.min(topo['y'])
 
 # %% step 1, setup/create the mesh 
 # create quad mesh
-moutput = mt.quadMesh(topo['y'], topo['z'], elemx=1, pad=0, fmd=10,zf=1.1,zgf=1.1)
+moutput = mt.quadMesh(topo['y'], topo['z'], elemx=1, pad=5, fmd=10,zf=1.1,zgf=1.1)
 mesh = moutput[0]  # ignore the other output from meshTools here
 numel = mesh.numel  # number of elements
 # say something about the number of elements
@@ -108,24 +118,23 @@ maxx = np.max(mesh.node[:,0]) # these max/min values will be used for ...
 minx = np.min(mesh.node[:,0]) # boundary conditions later on 
 
 #%% step 2 create materials 
-# STAITHES SANDSTONE 
-SSF = material(Ksat=0.11,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=1.5,name='STAITHES')
+SSF = material(Ksat=0.14e0,theta_res=0.06,theta_sat=0.38,
+               alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
-               alpha=0.005,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
+               alpha=0.05,vn=1.75,name='DOGGER')
+RMF = material(Ksat=0.14e0,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 #%% step 3, setup handler 
 ## create handler
-h = handler(dname='HydroWarmUp', ifac=1,tlength=secinday,iobs=100, 
+h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=100, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
-h.maxIter = 300
-h.rpmax = 5e3  
+h.maxIter = 200
+h.rpmax = 1e4  
 h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
@@ -149,45 +158,41 @@ source_node += 1
 
 general_node = np.array([],dtype=int)
 general_type = []
-pres_node = np.array([],dtype=int) 
+pres_node = []
 
 # find nodes on right side of mesh 
 b1902x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-106.288)**2))]
-right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
-# right_side_idx = (mesh.node[:,0] == b1902x) & (zone_node == 2)
+# right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
+right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = 82.4 
+right_side_wt = right_side_topo - 5  
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
-# pres_node = np.append(pres_node, right_node + 1) 
+# compute pressure on right hand side of mesh 
+right_side_bl= right_side_wt - mesh.node[right_node][:,2]
+right_pressure_val = max(9810*right_side_bl)
 
-cutoff = 50
-#find nodes on left side of mesh, set as drainage boundary below 55 od 
-left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] < cutoff)
+#find nodes on left side of mesh, set as drainage boundary 
+left_side_idx = (mesh.node[:,0] == minx)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 
 general_type = general_type + ['seep']*len(left_node)
-
-#find nodes on left side of mesh, set as seepage boundary above 55 od 
-left_side_idx = (mesh.node[:,0] == minx) & (mesh.node[:,2] > cutoff)
-left_side_node = mesh.node[left_side_idx]
-dist, left_node = tree.query(left_side_node[:,[0,2]])
-general_node = np.append(general_node,left_node + 1) 
-general_type = general_type + ['seep']*len(left_node)
+pres_node = pres_node + [0]*len(left_node)
 
 # hold pressure at borehole 1901 
-b1901_wt = 60.0 
 b1901x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-26.501)**2))]
-b1901_idx = (mesh.node[:,0] == b1901x) & (zone_node==1)
+b1901_idx = (mesh.node[:,0] == b1901x)
 b1901_node = mesh.node[b1901_idx]
 b1901_topo = max(b1901_node[:,2])
+b1901_wt = b1901_topo - 5.7
 b1901_delta = b1901_topo - b1901_wt 
 b1901_node_sat = b1901_node[b1901_node[:,2]<(b1901_topo-b1901_delta)]
 dist, b1901_node = tree.query(b1901_node_sat[:,[0,2]])
-# pres_node = np.append(pres_node, b1901_node+1)
+b1901_bl= b1901_wt - mesh.node[b1901_node][:,2]
+b1901_pressure = max(9810*b1901_bl)
 
 # find nodes at base of mesh 
 max_depth = max(cell_depths)+1
@@ -195,6 +200,10 @@ dist, base_node = tree.query(np.c_[xz[0], xz[1]-max_depth])
 # pres_node = np.append(pres_node,base_node+1)
 general_node = np.append(general_node, base_node+1)
 general_type = general_type + ['pres']*len(base_node)
+p = np.polyfit([b1901x,b1902x],[b1901_pressure,right_pressure_val],1)
+X = mesh.node[:,0][base_node]
+base_pressures = np.polyval(p, X)
+pres_node = pres_node + base_pressures.tolist()
 
 # make top nodes a seepage boundary? 
 # general_node = np.append(general_node,source_node) 
@@ -221,9 +230,7 @@ for i in range(1,len(xz[0])):
 # %% step 6, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
 rain = rainfall['EFF_RAIN'].values  # rain in mm/d
-infil = (rain/1000)/secinday #in kg/s # check this #### 
-# infil = np.full(len(rain),(1000*0.01)/secinday) 
-# infil[infil<0] = 0 # cap minimum at zero? 
+infil = (rain*1e-3)/secinday #in kg/s # check this #### 
 infil[np.isnan(infil)] = 0 # put NAN at zero 
 
 ntimes = len(rainfall)
@@ -237,7 +244,7 @@ fluidinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid input
 tempinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid temperature
 surftempinp = np.zeros((len(TimeStamp), len(source_node)))  # surface temperature
 for i in range(len(source_node)):
-    m = dx[i]/2
+    m = dx[i]
     fluidinp[:, i] = infil*m
     tempinp[:, i] = Temps
     surftempinp[:, i] = Temp_surface
@@ -249,30 +256,15 @@ ax.plot(TimeStamp,infil)
 #%% step 7, setup initial conditions 
 pres = np.zeros(mesh.numnp)
 
-pres[np.isnan(pres)] = 0 
-
 # compute pressure below water table 
 wt_depth = 5 #min(node_depths[pres==0])
 bl_depth = node_depths - wt_depth 
 bl_idx = pres==0 
 pres[bl_idx] = (9810*bl_depth[bl_idx])#*10e3  
+pres[np.isnan(pres)] = 0 
 
-# compute pressure on right hand side of mesh 
-right_side_bl= right_side_wt - mesh.node[right_node][:,2]
-right_pressure_val = (9810*right_side_bl)
-h.pressure = max(right_pressure_val)
-
-# hold pressure at zero on boreholes 
-b1901_bl= b1901_wt - mesh.node[b1901_node][:,2]
-hole_pressure = (9810*b1901_bl)
-
-# hold pressure at max pressure at base of mesh  
-base_pressure = np.full(len(ssf_base_node), max(right_pressure_val))
-
-# pressure_vals = right_pressure_val 
-pressure_vals = np.append(right_pressure_val, base_pressure)
-# pressure_vals = np.append(right_pressure_val,hole_pressure)
-# pressure_vals = np.append(pressure_vals, base_pressure)
+# pressure values for pressure nodes 
+pressure_vals = None 
 
 temp = [0]*mesh.numnp 
 pres[np.isnan(pres)] = 0 
@@ -280,9 +272,10 @@ pres[np.isnan(pres)] = 0
 #%% step 8, write inputs for SUTRA 
 h.setupInp(times=times, 
            source_node=source_node, 
-           pressure_node=pres_node, pressure_val=pressure_vals, 
+           #pressure_node=pres_node, pressure_val=pressure_vals, 
            general_node=general_node, general_type=general_type, 
            source_val=infil[0]*(dx/2))
+h.pressure = pres_node # assigned to general pressure nodes 
 h.writeInp() # write input without water table at base of column
 h.writeBcs(times, source_node, fluidinp, tempinp)
 h.writeIcs(pres, temp) # INITIAL CONDITIONS 
@@ -328,7 +321,7 @@ h.plotMeshResults()
 
 # save mesh output 
 mesh.flipYZ()
-mesh.vtk('HydroWarmUp/mesh.vtk')
+mesh.vtk(os.path.join(h.dname,'mesh.vtk'))
 
 #%% get init conditions for real run 
 nstep = h.resultNsteps
