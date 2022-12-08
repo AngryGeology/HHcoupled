@@ -52,7 +52,7 @@ elec = pd.read_csv('Data/elecData/2016-01-08.csv')
 warmup = pd.read_csv('Models/HydroWarmUp/warm.csv')
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
-poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
+poly_ssf = np.genfromtxt('interpretation/SSF_poly_v4.csv',delimiter=',')
 poly_ssf_ext = np.genfromtxt('interpretation/SSF_poly_ext.csv',delimiter=',')
 poly_dogger = np.genfromtxt('interpretation/Dogger_poly.csv',delimiter=',')
 
@@ -133,7 +133,7 @@ plt.close(fig)
 
 # %% step 3, setup/create the mesh for the hydrological model 
 # create quad mesh
-moutput = mt.quadMesh(elec['x'], elec['z'], elemx=1, pad=5, fmd=10,zf=1.2,zgf=1.1)
+moutput = mt.quadMesh(elec['x'], elec['z'], elemx=1, pad=1, fmd=10,zf=1.2,zgf=1.1)
 mesh = moutput[0]  # ignore the other output from meshTools here
 numel = mesh.numel  # number of elements
 # say something about the number of elements
@@ -189,13 +189,13 @@ maxx = np.max(mesh.node[:,0]) # these max/min values will be used for ...
 minx = np.min(mesh.node[:,0]) # boundary conditions later on 
 
 #%% step 4 create materials 
-SSF = material(Ksat=0.14e10,theta_res=0.06,theta_sat=0.38,
+SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
                alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='WHITBY')
+               alpha=0.012,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.14e0,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.075,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetro(ssf_petro_sat)
@@ -210,7 +210,7 @@ h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1,
             transport = 'transient',
             sim_type='solute')
 h.maxIter = 300
-h.rpmax = 5e3  
+h.rpmax = 10e3  
 h.drainage = 1e-2
 h.clearDir()
 h.setMesh(mesh)
@@ -239,11 +239,11 @@ pres_node = []
 
 # find nodes on right side of mesh 
 b1902x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-106.288)**2))]
-# right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
-right_side_idx = (mesh.node[:,0] == b1902x) 
+right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
+# right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = right_side_topo - 5  
+right_side_wt = right_side_topo - 7.5#5  
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
@@ -306,7 +306,7 @@ fluidinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid input
 tempinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid temperature
 surftempinp = np.zeros((len(TimeStamp), len(source_node)))  # surface temperature
 for i in range(len(source_node)):
-    m = dx[i]
+    m = dx[i]/2
     fluidinp[:, i] = infil*m
     tempinp[:, i] = Temps
     surftempinp[:, i] = Temp_surface
@@ -345,7 +345,7 @@ h.writeIcs(pres, temp) # INITIAL CONDITIONS
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
 
-h.showSetup() 
+h.showSetup(True) 
 
 # run sutra 
 h.runSUTRA()  # run
@@ -353,10 +353,10 @@ h.getResults()  # get results
 
 #%% create MC runs 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = np.linspace(0.005, 0.4,15)
-alpha_WMF = np.linspace(0.01, 0.1,10)
+alpha_SSF = np.linspace(0.005, 1.0,30)
+# alpha_WMF = np.linspace(0.01, 0.1,10)
 vn_SSF = np.linspace(1.05, 2,15)
-vn_WMF = np.linspace(1.2, 2,5)
+# vn_WMF = np.linspace(1.2, 2,5)
 
 a0,n0 = np.meshgrid(alpha_SSF,vn_SSF)# ,alpha_WMF,vn_WMF)
 
@@ -373,7 +373,6 @@ h.cpu = 16
 h.runMultiRun()
 run_keys = h.getMultiRun()
 
-
 #%% setup ResIPy project and resistivity runs 
 k = Project(dirname=sim_dir)
 k.setElec(elec)
@@ -384,6 +383,9 @@ h.setRproject(k)
 # we need to add one becuase the steps start from a initialising run where t=0 
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
+# uncomment to remove temperature correction 
+temp_uncorrect = None
+sdiy = None 
 # now setup R2 folders 
 if 'win' in sys.platform.lower():
     h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=1,
@@ -410,11 +412,18 @@ for run in run_keys:
     
 #%% plot and save 
 fig,ax = plt.subplots()
-cax = ax.tricontourf(alpha,vn,likelihoods)
+levels = np.linspace(0,max(likelihoods),100)
+cax = ax.tricontourf(alpha,vn,likelihoods,levels=levels)
 ax.set_xlabel('alpha (1/m)')
 ax.set_ylabel('n')
 cbar = plt.colorbar(cax) 
 cbar.set_label('Normalised Likelihood')
+
+best_fit = np.argmax(likelihoods)
+ssf_alpha = alpha[best_fit]
+ssf_vn = vn[best_fit]
+ax.scatter([ssf_alpha],[ssf_vn])
+
 fig.savefig(os.path.join(h.dname,'result.png'))
 df = pd.DataFrame({'alpha':alpha,
                    'vn':vn,
@@ -422,10 +431,8 @@ df = pd.DataFrame({'alpha':alpha,
 df.to_csv(os.path.join(h.dname,'result.csv'),index=False)
 
 #%% create the best model 
-best_fit = np.argmax(likelihoods)
-ssf_alpha = alpha[best_fit]
-ssf_vn = vn[best_fit]
-best_dir = os.path.join(h.dname, h.template.format(best_fit))
+best_fit_run = list(data_store.keys())[np.argmax(likelihoods)]
+best_dir = os.path.join(h.dname, h.template.format(best_fit_run))
 
 # save the contents of the model run that went well 
 if not os.path.exists(os.path.join(h.dname,'BestFit')):
@@ -437,7 +444,7 @@ for f in os.listdir(best_dir):
     shutil.copy(os.path.join(best_dir,f),
                 os.path.join(h.dname,'BestFit',f))
 
-best_dir = os.path.join(h.dname,'BestFit') 
+# best_dir = os.path.join(h.dname,'BestFit') 
 for f in os.listdir(best_dir): 
     if f == 'forward_model.dat':
         continue 
@@ -451,12 +458,11 @@ for f in os.listdir(best_dir):
         s.elec['buried'] = False 
         s.elec['remote'] = False 
         s.showPseudo(axp,vmin=10,vmax=60)
-        figp.savefig(os.path.join(pseudo_dir_synth,'p_section_{:0>3d}'.format(i)))
-        axp.cla() 
+        figp.savefig(os.path.join(pseudo_dir_synth,'p_section_{:0>3d}'.format(i))) 
         plt.close(figp)
         
 print(ssf_alpha,ssf_vn)
 
 #%% clear runs 
-# h.clearMultiRun()
+h.clearMultiRun()
     

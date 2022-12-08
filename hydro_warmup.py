@@ -25,6 +25,7 @@ if 'win' in sys.platform.lower() and win_r_path not in sys.path:
     sys.path.append(win_r_path)
 from resipy import meshTools as mt
 from SUTRAhandler import handler, material 
+from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect
 
 # setup script variables and functions 
 secinday = 24*60*60 
@@ -43,8 +44,16 @@ for d in [model_dir,sim_dir]:
 
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
+rainfall = pd.concat([rainfall[::2]]*2).reset_index()
+# compute day in year 
+sdiy = []
+c = 0 
+for i in range(len(rainfall)):
+    c+=1 
+    sdiy.append(c)
+    if c>365: 
+        c = 0 
 
-rainfall = pd.concat([rainfall[::2]]*5).reset_index()
 # read in topo data
 topo = pd.read_csv('Data/topoData/2016-01-08.csv')
 
@@ -53,7 +62,7 @@ rainfall.loc[0:int(len(rainfall)/2),'EFF_RAIN'] = 0
 rainfall.loc[int(len(rainfall)/2):,'EFF_RAIN'] = 5
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
-poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
+poly_ssf = np.genfromtxt('interpretation/SSF_poly_v5.csv',delimiter=',')
 poly_ssf_ext = np.genfromtxt('interpretation/SSF_poly_ext.csv',delimiter=',')
 poly_dogger = np.genfromtxt('interpretation/Dogger_poly.csv',delimiter=',')
 
@@ -62,7 +71,7 @@ minx = np.min(topo['y'])
 
 # %% step 1, setup/create the mesh 
 # create quad mesh
-moutput = mt.quadMesh(topo['y'], topo['z'], elemx=1, pad=5, fmd=10,zf=1.1,zgf=1.1)
+moutput = mt.quadMesh(topo['y'], topo['z'], elemx=1, pad=1, fmd=10,zf=1.1,zgf=1.1)
 mesh = moutput[0]  # ignore the other output from meshTools here
 numel = mesh.numel  # number of elements
 # say something about the number of elements
@@ -118,14 +127,19 @@ maxx = np.max(mesh.node[:,0]) # these max/min values will be used for ...
 minx = np.min(mesh.node[:,0]) # boundary conditions later on 
 
 #%% step 2 create materials 
-SSF = material(Ksat=0.14e0,theta_res=0.06,theta_sat=0.38,
+SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
                alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='WHITBY')
+               alpha=0.012,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.14e0,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.075e0,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
+
+SSF.setPetro(ssf_petro_sat)
+WMF.setPetro(wmf_petro_sat)
+DOG.setPetro(ssf_petro_sat)
+RMF.setPetro(wmf_petro_sat)
 
 #%% step 3, setup handler 
 ## create handler
@@ -162,11 +176,11 @@ pres_node = []
 
 # find nodes on right side of mesh 
 b1902x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-106.288)**2))]
-# right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
-right_side_idx = (mesh.node[:,0] == b1902x) 
+right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
+# right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = right_side_topo - 5  
+right_side_wt = right_side_topo - 7.5
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
@@ -244,7 +258,7 @@ fluidinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid input
 tempinp = np.zeros((len(TimeStamp), len(source_node)))  # fluid temperature
 surftempinp = np.zeros((len(TimeStamp), len(source_node)))  # surface temperature
 for i in range(len(source_node)):
-    m = dx[i]
+    m = dx[i]/2
     fluidinp[:, i] = infil*m
     tempinp[:, i] = Temps
     surftempinp[:, i] = Temp_surface
@@ -257,7 +271,7 @@ ax.plot(TimeStamp,infil)
 pres = np.zeros(mesh.numnp)
 
 # compute pressure below water table 
-wt_depth = 5 #min(node_depths[pres==0])
+wt_depth = 8 #min(node_depths[pres==0])
 bl_depth = node_depths - wt_depth 
 bl_idx = pres==0 
 pres[bl_idx] = (9810*bl_depth[bl_idx])#*10e3  
@@ -318,6 +332,16 @@ h.vmin = pmin
 h.vlim = [pmin, pmax]
 h.plot1Dresults()
 h.plotMeshResults()
+
+h.callPetro()
+h.callTempCorrect(temp_uncorrect, sdiy[::100]+[sdiy[-2],sdiy[-1]])
+h.attribute = 'Resistivity'
+h.vmax = 120
+h.vmin = 5
+h.vlim = [h.vmin, h.vmax]
+h.plot1Dresults()
+h.plotMeshResults()
+
 
 # save mesh output 
 mesh.flipYZ()

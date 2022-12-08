@@ -1308,7 +1308,7 @@ class handler:
                 elif general_type[i]  == 'drain':
                     line = "%i 0. 0. 0. -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
-                    line = "%i %e, 0. %e 0. 'P' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                    line = "%i %e, 0. %e 0. 'P' 'Q' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
                                                                                    self.pressure[i]+9180)
                 else: # standard general node, to do add functionality for this     
