@@ -979,6 +979,7 @@ class handler:
             self.mesh.df.loc[:,'zone'] = 1 
             self.mesh.ptdf.loc[:,'zone'] = 1 
             self.mesh.df.loc[:,'perm'] = material.perm  
+            self.mesh.df.loc[:,'Ksat'] = material.K 
             self.mesh.ptdf.loc[:,'por'] = material.theta_sat  
             material.zone = self.nzones 
         else: 
@@ -991,6 +992,7 @@ class handler:
                     if self.mesh.ptdf['zone'][a] == 1: # if not yet set then assign zone 
                         self.mesh.ptdf.loc[a,'zone'] = self.mesh.df['zone'][i]
             self.mesh.df.loc[zone_ids,'perm'] = material.perm
+            self.mesh.df.loc[zone_ids,'Ksat'] = material.K 
             node_idx = self.mesh.ptdf['zone'] == self.nzones
             self.mesh.ptdf.loc[node_idx,'por'] = material.theta_sat  
             material.zone = self.nzones
@@ -1305,8 +1307,10 @@ class handler:
                 #IPBG PBG1 QPBG1 PBG2 QPBG2 CPQL1 CPQL2 UPBGI CUPBGO UPBGO 
                 if general_type[i] == 'seep':
                     line = "%i -1. 0. 0. 0. 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
+                elif general_type[i]  == 'drain' and 'Ksat' in self.mesh.df.columns:
+                    line = "%i -1. 0. 100000. -%e 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.mesh.df['Ksat'][general_node[i]])
                 elif general_type[i]  == 'drain':
-                    line = "%i 0. 0. 0. -%e 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
+                    line = "%i -1. 0. 100000. -%e 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'Q' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
@@ -2033,8 +2037,11 @@ class handler:
                 for f in os.listdir(dpath):
                     if f.lower().endswith('.nod'):
                         # print(os.path.join(dpath,f))
-                        data,n = readNod(os.path.join(dpath,f)) 
-                        success = n >= self.resultNsteps
+                        try: 
+                            data,n = readNod(os.path.join(dpath,f)) 
+                            success = n >= self.resultNsteps
+                        except: 
+                            success = False 
                         if return_data and success:
                             self.nodResultMulti[runno] = data 
                         if success:

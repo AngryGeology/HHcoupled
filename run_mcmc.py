@@ -55,7 +55,7 @@ elec = pd.read_csv('Data/elecData/2016-01-08.csv')
 warmup = pd.read_csv('Models/HydroWarmUp/warm.csv')
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
-poly_ssf = np.genfromtxt('interpretation/SSF_poly_v3.csv',delimiter=',')
+poly_ssf = np.genfromtxt('interpretation/SSF_poly_v4.csv',delimiter=',')
 poly_ssf_ext = np.genfromtxt('interpretation/SSF_poly_ext.csv',delimiter=',')
 poly_dogger = np.genfromtxt('interpretation/Dogger_poly.csv',delimiter=',')
 
@@ -185,13 +185,13 @@ maxx = np.max(mesh.node[:,0]) # these max/min values will be used for ...
 minx = np.min(mesh.node[:,0]) # boundary conditions later on 
 
 #%% step 4 create materials 
-SSF = material(Ksat=0.14,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.5,name='STAITHES')
+SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
+               alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='WHITBY')
+               alpha=0.012,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.08,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.13,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetro(ssf_petro_sat)
@@ -200,8 +200,8 @@ DOG.setPetro(ssf_petro_sat)
 RMF.setPetro(wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.01, 1.5] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.01, 2.0] 
+alpha_SSF = [0.001, 0.01, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.01, 1.5] 
 vn_SSF = [1.1, 0.05, 2.5]
 vn_WMF = [1.1, 0.05, 1.8]
 
@@ -250,7 +250,7 @@ b1902x = mesh.node[:,0][np.argmin(np.sqrt((mesh.node[:,0]-106.288)**2))]
 right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = right_side_topo - 5  
+right_side_wt = right_side_topo - 7.5  
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
@@ -298,7 +298,7 @@ for i in range(1,len(xz[0])):
 # %% step 8, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
 rain = rainfall['EFF_RAIN'].values # rain in mm/d
-infil = (rain*1e-3)/secinday #in kg/s # check this #### 
+infil = (rain*1e-2)/secinday #in kg/s # check this #### 
 
 infil[np.isnan(infil)] = 0 # put NAN at zero 
 
@@ -365,7 +365,7 @@ h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences,
 
 #%% run MCMC 
  # single chain 
-nstep = 10
+nstep = 1000
 print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
 chainlog, ar = h.mcmc(nstep,0.25)
 df = pd.DataFrame(chainlog)

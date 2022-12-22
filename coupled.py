@@ -133,7 +133,7 @@ plt.close(fig)
 
 # %% step 3, setup/create the mesh for the hydrological model 
 # create quad mesh
-moutput = mt.quadMesh(elec['x'], elec['z'], elemx=1, pad=1, fmd=10,zf=1.2,zgf=1.1)
+moutput = mt.quadMesh(elec['x'], elec['z'], elemx=2, pad=1, fmd=10,zf=1.1,zgf=1.1)
 mesh = moutput[0]  # ignore the other output from meshTools here
 numel = mesh.numel  # number of elements
 # say something about the number of elements
@@ -195,7 +195,7 @@ WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.012,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.075,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.13,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetro(ssf_petro_sat)
@@ -210,8 +210,8 @@ h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1,
             transport = 'transient',
             sim_type='solute')
 h.maxIter = 300
-h.rpmax = 10e3  
-h.drainage = 1e-2
+h.rpmax = 1e4  
+h.drainage = None 
 h.clearDir()
 h.setMesh(mesh)
 h.setEXEC(exec_loc)
@@ -291,7 +291,7 @@ for i in range(1,len(xz[0])):
 # %% step 8, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
 rain = rainfall['EFF_RAIN'].values # rain in mm/d
-infil = (rain/1000)/secinday #in kg/s # check this #### 
+infil = (rain*1e-2)/secinday #in kg/s # check this #### 
 
 infil[np.isnan(infil)] = 0 # put NAN at zero 
 
@@ -353,7 +353,7 @@ h.getResults()  # get results
 
 #%% create MC runs 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = np.linspace(0.005, 1.0,30)
+alpha_SSF = np.linspace(0.005, 2.0,30)
 # alpha_WMF = np.linspace(0.01, 0.1,10)
 vn_SSF = np.linspace(1.05, 2,15)
 # vn_WMF = np.linspace(1.2, 2,5)
@@ -420,6 +420,7 @@ cbar = plt.colorbar(cax)
 cbar.set_label('Normalised Likelihood')
 
 best_fit = np.argmax(likelihoods)
+m
 ssf_alpha = alpha[best_fit]
 ssf_vn = vn[best_fit]
 ax.scatter([ssf_alpha],[ssf_vn])

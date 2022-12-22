@@ -85,7 +85,7 @@ for i in tqdm(range(len(pedf))):
     prmatched[i] = psum
     effrain[i] = psum - pe[i]
     
-    if d0 > datetime(2014,12,31) and d0 < datetime(2017,1,1):
+    if d0 > datetime(2014,6,30) and d0 < datetime(2017,1,1):
         filteridx[i] = True 
     
 #%% infall nan 
@@ -108,7 +108,7 @@ df = {'DATE_TIME':pedates,
       'EFF_RAIN':effrain}
 
 df = pd.DataFrame(df)
-df.to_csv(os.path.join('Rainfall','COSMOS_2013-2018.csv'),index=False)
+df.to_csv(os.path.join('Data','Rainfall','COSMOS_2013-2018.csv'),index=False)
 
 # now filter down to just 2015  and 2016 
-df[filteridx].to_csv(os.path.join('Rainfall','COSMOS_2015-2016.csv'),index=False)
+df[filteridx].to_csv(os.path.join('Data','Rainfall','COSMOS_2015-2016.csv'),index=False)

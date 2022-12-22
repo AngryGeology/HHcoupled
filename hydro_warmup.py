@@ -44,7 +44,7 @@ for d in [model_dir,sim_dir]:
 
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
-rainfall = pd.concat([rainfall[::2]]*2).reset_index()
+rainfall = pd.concat([rainfall[::2]]*10).reset_index()
 # compute day in year 
 sdiy = []
 c = 0 
@@ -133,7 +133,7 @@ WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.012,vn=1.44,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
-RMF = material(Ksat=0.075e0,theta_res=0.1,theta_sat=0.48,
+RMF = material(Ksat=0.13e0,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetro(ssf_petro_sat)
@@ -149,7 +149,7 @@ h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=100,
             sim_type='solute')
 h.maxIter = 200
 h.rpmax = 1e4  
-h.drainage = 1e-2
+h.drainage = None 
 h.clearDir()
 h.setMesh(mesh)
 h.setEXEC(exec_loc)
@@ -193,7 +193,7 @@ left_side_idx = (mesh.node[:,0] == minx)
 left_side_node = mesh.node[left_side_idx]
 dist, left_node = tree.query(left_side_node[:,[0,2]])
 general_node = np.append(general_node,left_node + 1) 
-general_type = general_type + ['seep']*len(left_node)
+general_type = general_type + ['seep'] * len(left_node)
 pres_node = pres_node + [0]*len(left_node)
 
 # hold pressure at borehole 1901 
@@ -244,7 +244,7 @@ for i in range(1,len(xz[0])):
 # %% step 6, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
 rain = rainfall['EFF_RAIN'].values  # rain in mm/d
-infil = (rain*1e-3)/secinday #in kg/s # check this #### 
+infil = (rain*1e-2)/secinday #in kg/s # check this #### 
 infil[np.isnan(infil)] = 0 # put NAN at zero 
 
 ntimes = len(rainfall)
@@ -334,7 +334,7 @@ h.plot1Dresults()
 h.plotMeshResults()
 
 h.callPetro()
-h.callTempCorrect(temp_uncorrect, sdiy[::100]+[sdiy[-2],sdiy[-1]])
+# h.callTempCorrect(temp_uncorrect, sdiy[::100]+[sdiy[-2],sdiy[-1]])
 h.attribute = 'Resistivity'
 h.vmax = 120
 h.vmin = 5
