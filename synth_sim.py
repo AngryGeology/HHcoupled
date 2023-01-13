@@ -318,4 +318,3 @@ for f in sorted(os.listdir(fwddir)):
     shutil.copy(os.path.join(fwddir,f),
                 os.path.join(datadir,rfiles[i]))
 
-

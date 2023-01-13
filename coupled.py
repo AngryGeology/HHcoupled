@@ -353,9 +353,9 @@ h.getResults()  # get results
 
 #%% create MC runs 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = np.linspace(0.005, 2.0,30)
+alpha_SSF = np.linspace(0.005, 2.0,10)
 # alpha_WMF = np.linspace(0.01, 0.1,10)
-vn_SSF = np.linspace(1.05, 2,15)
+vn_SSF = np.linspace(1.05, 2,5)
 # vn_WMF = np.linspace(1.2, 2,5)
 
 a0,n0 = np.meshgrid(alpha_SSF,vn_SSF)# ,alpha_WMF,vn_WMF)
@@ -384,8 +384,8 @@ h.setRproject(k)
 survey_keys = np.arange(h.resultNsteps)[np.array(sflag)==True]+1
 
 # uncomment to remove temperature correction 
-temp_uncorrect = None
-sdiy = None 
+# temp_uncorrect = None
+# sdiy = None 
 # now setup R2 folders 
 if 'win' in sys.platform.lower():
     h.setupRruns(write2in,run_keys,survey_keys,sequences,ncpu=1,

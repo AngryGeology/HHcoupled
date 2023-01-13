@@ -29,9 +29,9 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, trans=False):
 
 # get mcmc result file 
 
-# df = pd.read_csv('HydroMCMC/mergedMCMClog.csv')
-df = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/SyntheticStudy/Models/MCMC/mergedMCMClog.csv')
-pt_threshold = 0.4500 
+df = pd.read_csv('Models/HydroMCMC/mergedMCMClog.csv')
+# df = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/SyntheticStudy/Models/MCMC/mergedMCMClog.csv')
+pt_threshold = 0.025 # 0.4500 
 nzones = 2 
 stable = df['Stable']
 
