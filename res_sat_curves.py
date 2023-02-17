@@ -201,11 +201,13 @@ for i, name in enumerate(fit_names):
         print("k: %f"%k)
         print('c: %f'%c)
         
-        fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
-        fh.write('a: %f\n'%a)
-        fh.write('k: %f\n'%k)
-        fh.write('c: %f\n'%c)
-        fh.close() 
+        ## uncomment to write to file 
+        
+        # fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
+        # fh.write('a: %f\n'%a)
+        # fh.write('k: %f\n'%k)
+        # fh.write('c: %f\n'%c)
+        # fh.close() 
         
         mdl = powerLaw(X,a,k,c)
         mdlRt = powerLaw(mdlSat,a,k,c)

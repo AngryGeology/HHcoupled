@@ -204,8 +204,9 @@ alpha_SSF = [0.001, 0.01, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT
 alpha_WMF = [0.001, 0.01, 1.5] 
 vn_SSF = [1.1, 0.05, 2.5]
 vn_WMF = [1.1, 0.05, 1.8]
+K_SSF = [0.14,0.1,0.64]
 
-ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
+ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF,'K':K_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
 
 SSF.setMCparam(ssf_param)

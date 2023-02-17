@@ -717,6 +717,11 @@ class material:
         perm = (k*u)/(p*g)
         self.perm = perm 
         
+        if 'K' in self.MCparam.keys(): 
+            ks = self.MCparam['K']
+            perms = [(_k*u)/(p*g) for _k in ks]
+            self.MCparam['k'] = perms 
+        
         if return_value:  
             return  perm # in m^2 
         
@@ -777,6 +782,9 @@ class material:
             
         self.niter = max(lengths)
         self.MCparam = param 
+        
+        if 'K' in self.MCparam.keys(): 
+            self.convertk2K()
         
         
     
@@ -2581,21 +2589,6 @@ class handler:
                 logger('Accept = False',logf)
                 ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
                 continue 
-            
-            # double check for negatives (for some reason some slip through the mcmc proposer)
-            # neg_check = False 
-            # for key in model.keys():
-            #     for j in range(len(model[key])):
-            #         if isinstance(model[key][j],str): 
-            #             continue 
-            #         if model[key][j] < 0: 
-            #             neg_check = True 
-            # if neg_check:
-            #     accept = False 
-            #     logger('Proposed trial model has negative values!',logf)
-            #     logger('Accept = False',logf)
-            #     ac.append(0) # add 0 to acceptance chain so that unstable models dont get unfairly weighted 
-            #     continue 
             
             # run trial parameters  
             logger('Running SUTRA model...',logf)

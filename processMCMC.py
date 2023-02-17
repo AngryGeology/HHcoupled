@@ -29,9 +29,9 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, trans=False):
 
 # get mcmc result file 
 
-df = pd.read_csv('Models/HydroMCMC/mergedMCMClog.csv')
-# df = pd.read_csv('/home/jimmy/phd/Hollin_Hill/Coupled/SyntheticStudy/Models/MCMC/mergedMCMClog.csv')
-pt_threshold = 0.025 # 0.4500 
+# df = pd.read_csv('Models/HydroMCMC/mergedMCMClog.csv')
+df = pd.read_csv('SyntheticStudy/Models/MCMC/mergedMCMClog.csv')
+pt_threshold = 0.3500 # 0.025 # 
 nzones = 2 
 stable = df['Stable']
 
@@ -59,7 +59,7 @@ for i in range(nzones):
     axs[i] = ax 
     axs['hist_x%i'%i] = ax_histx
     axs['hist_y%i'%i] = ax_histy
-    
+
 figs[nzones],axs[nzones] = plt.subplots()
 axs[nzones].set_ylabel('Normalised liklehood')
 axs[nzones].set_xlabel('Run')
@@ -105,7 +105,8 @@ for i in range(nzones):
     print('N : %f +/- %f (-)'%(py[0],py[1]))
     print('\n')
     
-    figs[i].savefig('Models/mcmc_figure_zone%i.png'%i)
+    # figs[i].savefig('Models/mcmc_figure_zone%i.png'%i)
+    figs[i].savefig('SyntheticStudy/Models/MCMC/mcmc_figure_zone%i.png'%i)
 
 for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt']>0) 
@@ -118,5 +119,6 @@ for chain in np.unique(df['chain']):
     axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx])
         
 for i in range(nzones):
-    figs[i].savefig('Models/mcmc_figure_zone%i_wpaths.png'%i)
+    # figs[i].savefig('Models/mcmc_figure_zone%i_wpaths.png'%i)
+    figs[i].savefig('SyntheticStudy/Models/MCMC/mcmc_figure_zone%i_wpaths.png'%i)
     
