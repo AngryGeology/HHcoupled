@@ -720,7 +720,8 @@ class material:
         if 'K' in self.MCparam.keys(): 
             ks = self.MCparam['K']
             perms = [(_k*u)/(p*g) for _k in ks]
-            self.MCparam['k'] = perms 
+            self.MCparam['k'] = perms
+            del self.param['K'] # remove conductivity 
         
         if return_value:  
             return  perm # in m^2 
@@ -1322,7 +1323,7 @@ class handler:
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'Q' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
-                                                                                   self.pressure[i]+9180)
+                                                                                   self.pressure[i]*10)#+9180)
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     

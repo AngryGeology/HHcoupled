@@ -222,6 +222,7 @@ for i, name in enumerate(fit_names):
     print('RMS: %f'%rms)
     print('CHi^2: %f'%chi)
     print('r^2: %f'%r2)
+    print('N: %i'%len(X))
     fig, ax1 = plt.subplots()
     ax1.scatter(X, data, c="k", marker="*")
     ax1.plot(mdlSat, mdlRt, c="b")

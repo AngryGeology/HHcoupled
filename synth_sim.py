@@ -208,7 +208,7 @@ for i in range(1,len(xz[0])):
 # %% step 6, doctor rainfall and energy input for SUTRA 
 # rainfall is given in mm/day, so convert to kg/s
 rain = rainfall['EFF_RAIN'].values  # rain in mm/d
-infil = (rain/1000)/secinday #in kg/s # check this #### 
+infil = (rain*1e-2)/secinday #in kg/s # check this #### 
 infil[np.isnan(infil)] = 0 # put NAN at zero 
 
 ntimes = len(rainfall)
