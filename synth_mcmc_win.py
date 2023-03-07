@@ -108,7 +108,7 @@ for i,f in enumerate(rfiles):
     df = s.df[['a','b','m','n','recipMean','resError']]
     df = df.rename(columns={'recipMean':'tr',
                             'resError':'error'})
-    df.loc[:,'error'] = np.abs(df['tr']*0.05) # assume errors are 5%  
+    df.loc[:,'error'] = np.abs(df['tr']*0.02) # assume errors are 2%  
     df['sidx'] = i 
     sequences.append(df[['a','b','m','n']].values)
     data_seq = pd.concat([data_seq,df]) # append frame to data sequence 

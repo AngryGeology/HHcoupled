@@ -46,7 +46,8 @@ master['sat'] = sat
 fig, ax = plt.subplots()
 
 uni_names = np.unique(master["Sample"].values)
-unwanted = ['HH01- 4.5V','HH02 - 1.05V','HH02 - 0.95H']
+unwanted = ['HH01- 4.5V','HH01-1.5H','HH02 - 1.05V','HH02 - 0.95H',
+            "HH02 - 3.1V", "HH02 - 6.2V"]
 cols = [(0.7,0.7,0.5),
         (0.2,0.2,0.2),
         (0.4,0.7,0.4)]
@@ -61,21 +62,24 @@ for name in uni_names:
         
     # choose colour of marker, WMF, ssf, wmf disturbed 
     col = cols[0]
-    label = 'SSF - D'
+    label = 'SSF data'
+    # label = 'SSF - D'
     if 'HH02' in name:
         col = cols[1]
-        label = 'WMF - I'
+        label = 'WMF data'
+        # label = 'WMF - I'
         if master['depth'][idx].values[-1] < 1.5:
             col = cols[2]
-            label = 'WMF - D'
+            # label = 'WMF - D'
 
     # mark off if vertical or horizontal - chooses shape of marker 
     mark = '1'
     if 'H' == name[-1]: 
         mark = '+'
-        label += 'H'
+        # label += 'H'
     else:
-        label += 'V'
+        pass
+        # label += 'V'
         
     ln = ax.scatter(
         master["sat"][idx],
@@ -102,11 +106,10 @@ Rt = master["TC Resistivity (Ohm.m)"].values
 tofit01 = ["HH02 - 0.95H", "HH02 - 1.05V"]
 # tofit02 = ["HH02 - 3.1V", "HH02 - 6.2V"]
 tofit02 = ["HH02 - 3H","HH02 - 6.1H"]
-# tofit02 = ["HH02 - 3H", "HH02 - 6.1H", 
-#            "HH02 - 3.1V", "HH02 - 6.2V"]
+
 tofit03 = ['HH01-1.5V']
 
-fit_names = ["WMF (Insitu) fit", "SSF (Disturbed) fit"]
+fit_names = ["WMF fit", "SSF fit"]
 fit_columns = [tofit02, tofit03]
 fit_colour = [cols[1], cols[0]]
 fit_type = ['Gen','Gen']
@@ -223,7 +226,7 @@ for i, name in enumerate(fit_names):
     print('CHi^2: %f'%chi)
     print('r^2: %f'%r2)
     print('N: %i'%len(X))
-    fig, ax1 = plt.subplots()
+    fig1, ax1 = plt.subplots()
     ax1.scatter(X, data, c="k", marker="*")
     ax1.plot(mdlSat, mdlRt, c="b")
 
@@ -242,3 +245,5 @@ ax.grid(True,'minor',linestyle=':',color=(0.5,0.5,0.7,0.3))
 
 # ax.plot(mdlSat, ssf_polyn(mdlSat),'k:')
 # ax.plot(mdlSat, wmf_petro_sat(mdlSat),'b--')
+
+# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure 

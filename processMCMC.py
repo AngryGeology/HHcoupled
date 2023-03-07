@@ -110,17 +110,17 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, trans=False):
 
 #%% main program parameters 
 # get mcmc result file 
-# dirname = 'Models/HydroMCMC'
-dirname = 'SyntheticStudy/Models/MCMC/' 
-dirname = 'SyntheticStudy/Models/MCMC(no_error)/' 
-# dists = {0:['gauss','bimodal'],
-#           1:['bimodal','bimodal']}
-dists = {0:['bimodal','gauss'],
-          1:['bimodal','gauss']}
-# pt_threshold = 0.025
-pt_threshold = 0.33
+dirname = 'Models/HydroMCMC'
+# dirname = 'SyntheticStudy/Models/MCMC/' 
+# dirname = 'SyntheticStudy/Models/MCMC(no_error)/' 
+dists = {0:['gauss','bimodal'],
+          1:['bimodal','bimodal']}
+# dists = {0:['gauss','gauss'],
+#           1:['gauss','gauss']}
+pt_threshold = 0.025
+# pt_threshold = 0.45
 
-savfig=False 
+savfig=False
 nzones = 2 
 #%% program 
 fname = None 
@@ -162,18 +162,21 @@ for i in range(nzones):
 figs[nzones],axs[nzones] = plt.subplots()
 axs[nzones].set_ylabel('Normalised liklehood')
 axs[nzones].set_xlabel('Run')
-
+cfig,cax=plt.subplots() 
     
 ## plot liklihood data and paths 
 params = {}
 for i in range(nzones): 
     params[i] = {} 
     n = i+1 
-    axs[i].tricontourf(df['alpha_%i'%n][stable], 
-                       df['vn_%i'%n][stable],
-                       df['Pt'][stable])
+    cmp = axs[i].tricontourf(df['alpha_%i'%n][stable], 
+                             df['vn_%i'%n][stable],
+                             df['Pt'][stable])
     axs[i].set_xlabel('Alpha (1/m)')
     axs[i].set_ylabel('N (-)')
+    if i==0:
+        cbar = plt.colorbar(cmp,ax=cax,location="bottom")
+        cbar.set_label('Normalised Likelihood')
     # add full histogram 
     x = df['alpha_%i'%n][stable]
     y = df['vn_%i'%n][stable]
@@ -212,23 +215,36 @@ for i in range(nzones):
     else:
         print('N : %f +/- %f (-)'%(py[0],py[1]))
     print('\n')
+    nsample = len(df['alpha_%i'%n][stable][idx])
+    print('Nsample = %i'%nsample)
     
     figure_file = os.path.join(dirname,'mcmc_figure_zone%i.png'%i)
     if savfig: 
         figs[i].savefig(figure_file)
+        cfig.savefig(os.path.join(dirname,'colorbar.png'))
 
 for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt']>0) 
+    color = (0.2,0.2,0.2,0.5)
     for i in range(nzones): 
         n = i+1 
         x = df['alpha_%i'%n][idx]
         y = df['vn_%i'%n][idx]
-        axs[i].plot(x, y)
+        axs[i].plot(x, y, color=color)
     # if chain == 0: 
+    
     axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx])
         
 for i in range(nzones):
     figure_file_wpaths=os.path.join(dirname,'mcmc_figure_zone%i_wpaths.png'%i)
     if savfig: 
         figs[i].savefig(figure_file_wpaths)
-    
+        
+best_model_idx = np.argmax(df['Pt'])
+for i in range(nzones):
+    n = i+1 
+    model = [df['alpha_%i'%n][best_model_idx],
+             df['vn_%i'%n][best_model_idx]]
+    print('Best fit for zone %i'%n)
+    print('Alpha : %f (1/m)'%(model[0]))
+    print('N : %f (-)'%(model[1]))

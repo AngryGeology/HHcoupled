@@ -6,7 +6,7 @@ Run a coupled model to solve the VG parameters of the staithes sandstone.
 @author: jimmy
 """
 import os, sys, shutil 
-from datetime import datetime 
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -311,15 +311,26 @@ for i in range(len(source_node)):
     tempinp[:, i] = Temps
     surftempinp[:, i] = Temp_surface
     
-## plot infiltration 
+#%% plot infiltration 
 fig, ax = plt.subplots()
-ax.plot(rdates,infil,c='b') 
-
+bar_colours = ['b']*len(rain)
 for date in sdates: 
-    ax.plot([date,date],[min(infil),max(infil)],color=(0.5,0.5,0.5,0.5))
+    if date in rdates:
+        bar_colours[rdates.index(date)]='g'
+        
+for date in sdates: 
+    ax.plot([date,date],[-10,40],color=(0.5,0.5,0.5,0.5))
     
+ax.bar(rdates,rain,color=bar_colours,width=1.05) 
+
+
+ax.set_ylim([-5,40])
+ax.set_xlim([min(rdates),max(rdates)])
+ax.grid(False)
 ax.set_xlabel('Date')
-ax.set_ylabel('Eff.Rainfall (kg/s)')
+ax.set_ylabel('Eff.Rainfall (mm/day)')
+
+# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig04.png',dpi=600)
 
 #%% step 9, setup initial conditions (read from warmup run)
 ppres = warmup['Pressure'].values 
