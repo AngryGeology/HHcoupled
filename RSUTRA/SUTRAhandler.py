@@ -14,6 +14,8 @@ import pandas as pd
 from tqdm import tqdm
 from joblib import Parallel, delayed
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+# custom module 
+from swEstimator import estSwfromRainfall 
 
 secinday = 24*60*60 
 
@@ -151,12 +153,11 @@ def invVGcurve(water_content,sat,res,alpha,n,m = None):
     if m is None:
         m=1-(1/n)
         
-    step1 = (sat-res)/(water_content-res)
-    step2 = step1**(1/m) - 1
-    step3 = step2**(1/n)
-    step4 = step3/alpha 
+    thetan = (water_content-res)/(sat-res)
+    step1 = ((1/thetan)**(1/m)) - 1 
+    step2 = step1**(1/n)
     
-    return step4 
+    return step2*(1/alpha)
 
 def waxmanSmit(saturation,F,sigma_w,sigma_s): # convert moisture content to resistivity via waxman smits 
     """
@@ -663,7 +664,7 @@ class material:
         self.K = Ksat # saturated hydrualic conductivity 
         self.sat = sat # saturated saturation value (normally 1)
         self.res = res # residual saturation value 
-        self.theta_sat = theta_sat # saturated volumetric water content value 
+        self.theta_sat = theta_sat # saturated volumetric water content value (same as porosity)
         self.theta_res = theta_res # residual volumetric water content value 
         self.perm = perm # permeability, otherwise estimated from hydrualic conductivity assuming its in m/day 
         # van genutchen parameters 
@@ -762,6 +763,23 @@ class material:
         res = self.petro_func(S)
         return res 
     
+    def pres(self,S):
+        """
+        Solve pressure in terms of pressure 
+
+        Parameters
+        ----------
+        S : float array 
+            Saturation values. 
+        Returns
+        -------
+        P: float array 
+            Pressure values 
+
+        """
+        P = invVGcurve(S,self.sat,self.res,self.alpha,self.vn)
+        return P 
+    
     def setMCparam(self,param):
         """
         Set Monte Carlo parameters 
@@ -787,6 +805,30 @@ class material:
         if 'K' in self.MCparam.keys(): 
             self.convertk2K()
         
+    def estSw(self,Pr,Et,ts):
+        """
+        Estimate Sw from rainfall  
+
+        Parameters
+        ----------
+        Pr : Array like 
+            Rainfall in m/s 
+        Et : Array like 
+            Evapotranspiration in m/s 
+        ts : Array like 
+            Time steps in seconds 
+
+        Returns
+        -------
+        sw : Array 
+            Saturation fraction estimation.
+        """
+        sw = estSwfromRainfall(
+            Pr,Et,ts,self.sat,self.res,
+            self.theta_sat,self.alpha*1e-3,self.vn,
+            self.perm, self.convert_cons['u'], 
+            ifac=48) 
+        return sw 
         
     
 #%% master class for handling sutra 
@@ -1086,7 +1128,7 @@ class handler:
                          'solver':solver}
         
     # WRITE functions
-    def writeInp(self,dirname=None):
+    def writeInp(self,dirname=None,variable_pressure=False):
         if self.setupinp is None:
             raise Exception('Initial setup has not been done yet!')
             
@@ -1173,7 +1215,10 @@ class handler:
         self.resultNsteps = nsteps 
         # define time steps in input file here
         if self.flow.upper() == 'TRANSIENT':
-            fh.write("'Rainfall' 'TIME LIST' 'ELAPSED' %3.2f %i\n" % (scalt, nsteps))
+            if variable_pressure: 
+                fh.write("'Pressure' 'TIME LIST' 'ELAPSED' %3.2f %i\n" % (scalt, nsteps))
+            else: 
+                fh.write("'Rainfall' 'TIME LIST' 'ELAPSED' %3.2f %i\n" % (scalt, nsteps))
             c = 0
             for i in range(nsteps):
                 fh.write("%3.2f " % (times[i]))
@@ -1349,7 +1394,7 @@ class handler:
         Datasets 3, 4, 5, and 6 of a “.bcs” file correspond to datasets 17, 18, 19, and 20, respectively,
         of the “.inp” file. (For example, “.bcs” dataset 5 and “.inp” dataset 19 both define
         specified-pressure nodes.) The formats of these four “.bcs” datasets parallel those of the
-        corresponding “.inp” datasets.
+        corresponding “.inp” datasets. This function is for writing rainfall to file. 
 
         Parameters
         ----------
@@ -1405,7 +1450,88 @@ class handler:
                     fh.write(line)
                 fh.write('0\n')
         fh.close()
-    
+        
+    def writeBcsPres(self, times, pres_node, pressure):
+        """
+        Datasets 3, 4, 5, and 6 of a “.bcs” file correspond to datasets 17, 18, 19, and 20, respectively,
+        of the “.inp” file. (For example, “.bcs” dataset 5 and “.inp” dataset 19 both define
+        specified-pressure nodes.) The formats of these four “.bcs” datasets parallel those of the
+        corresponding “.inp” datasets. This function is for writing pressures to file. 
+
+        Parameters
+        ----------
+        times : TYPE
+            DESCRIPTION.
+        pres_node : TYPE
+            DESCRIPTION.
+        pressure : TYPE
+            DESCRIPTION.
+        temps : TYPE
+            DESCRIPTION.
+        surface_temp : TYPE, optional
+            DESCRIPTION. The default is None.
+        """
+        nsteps = len(times)
+        nnodes = len(pres_node)
+        fh = open(os.path.join(self.dname, self.name+'.bcs'), 'w')
+        ### time steps ###
+        fh.write('# Dataset 1\n')
+        fh.write("'Pressure'\n")
+        ### time dependent variables ###
+        NPBC = len(pres_node)
+        
+        ### write out time steps (for sources) ###
+        for i in range(nsteps):
+            fh.write("'ts{:0>6d}' ".format(times[i]))
+            # NSOP1, NSOU1, NPBC1, NUBC1, NPBG1, NUBG1 (according to sutra 3.0 docuementation)
+            fh.write('0 0 %i 0 0 0\n'%(NPBC))
+            fh.write('# Dataset 5\n')
+            for j in range(nnodes):
+                line = "%i %.8e %.8e\n"%(pres_node[j], pressure[i, j], 0)
+                fh.write(line)
+            fh.write('0\n')
+            
+    def writeGenBcs(self, times, general_node, rainfall):
+        """
+        Datasets 3, 4, 5, and 6 of a “.bcs” file correspond to datasets 17, 18, 19, and 20, respectively,
+        of the “.inp” file. (For example, “.bcs” dataset 5 and “.inp” dataset 19 both define
+        specified-pressure nodes.) The formats of these four “.bcs” datasets parallel those of the
+        corresponding “.inp” datasets. This function is for writing rainfall as generalised nodes to file. 
+
+        Parameters
+        ----------
+        times : TYPE
+            DESCRIPTION.
+        pres_node : TYPE
+            DESCRIPTION.
+        pressure : TYPE
+            DESCRIPTION.
+        temps : TYPE
+            DESCRIPTION.
+        surface_temp : TYPE, optional
+            DESCRIPTION. The default is None.
+        """
+        nsteps = len(times)
+        nnodes = len(general_node)
+        fh = open(os.path.join(self.dname, self.name+'.bcs'), 'w')
+        ### time steps ###
+        fh.write('# Dataset 1\n')
+        fh.write("'Rainfall'\n")
+        ### time dependent variables ###
+        NPBG = len(general_node)
+        
+        ### write out time steps (for sources) ###
+        for i in range(nsteps):
+            fh.write("'ts{:0>6d}' ".format(times[i]))
+            # NSOP1, NSOU1, NPBC1, NUBC1, NPBG1, NUBG1 (according to sutra 3.0 docuementation)
+            fh.write('0 0 0 0 %i 0\n'%(NPBG))
+            fh.write('# Dataset 7A\n')
+            for j in range(nnodes):
+                # IPBG1, PBG11, QPBG11, PBG21, QPBG21, CPQL11, CPQL21, UPBGI1, CUPBGO1, UPBGO1
+                line = "%i -1. %.8e 0 %.8e 'N' 'N' 0 'REL' 0\n"%(general_node[j], rainfall[i, j], rainfall[i, j])
+                fh.write(line)
+            fh.write('0\n')
+        
     
     def writeIcs(self, pres, temps):
         # just needs the pressures and temperatures at each node
@@ -1576,7 +1702,7 @@ class handler:
         NUBC = len(temp_node)  # len(source_node)#0
         NPBC = len(pressure_node)
         NSOP = len(source_node)
-        NPBG =  len(general_node) # general nodes used as seepage for now 
+        NPBG = len(general_node) # general nodes used as seepage for now 
         
         fig, ax = plt.subplots()
         fig.set_size_inches(12.0 , 8)

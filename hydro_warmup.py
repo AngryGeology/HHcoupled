@@ -44,7 +44,9 @@ for d in [model_dir,sim_dir]:
 
 # %% step 0, load in relevant files
 rainfall = pd.read_csv(os.path.join('Data/Rainfall', 'COSMOS_2015-2016.csv'))
-rainfall = pd.concat([rainfall[::2]]*10).reset_index()
+rainfall = rainfall.loc[rainfall.index.repeat(10)].reset_index()
+rainfall = rainfall[0:1800]
+# rainfall = pd.concat([rainfall]*2).reset_index()
 # compute day in year 
 sdiy = []
 c = 0 
@@ -59,7 +61,7 @@ topo = pd.read_csv('Data/topoData/2016-01-08.csv')
 
 
 rainfall.loc[0:int(len(rainfall)/2),'EFF_RAIN'] = 0
-rainfall.loc[int(len(rainfall)/2):,'EFF_RAIN'] = 5
+rainfall.loc[int(len(rainfall)/2):,'EFF_RAIN'] =50
 
 # LOAD IN EXTENT OF WMF/SSF (will be used to zone the mesh)
 poly_ssf = np.genfromtxt('interpretation/SSF_poly_v5.csv',delimiter=',')
@@ -128,9 +130,9 @@ minx = np.min(mesh.node[:,0]) # boundary conditions later on
 
 #%% step 2 create materials 
 SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.2,name='STAITHES')
+               alpha=0.13,vn=1.5,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.012,vn=1.44,name='WHITBY')
+               alpha=0.012,vn=1.35,name='WHITBY')
 DOG = material(Ksat=0.309,theta_res=0.008,theta_sat=0.215,
                alpha=0.05,vn=1.75,name='DOGGER')
 RMF = material(Ksat=0.13e0,theta_res=0.1,theta_sat=0.48,
@@ -143,12 +145,12 @@ RMF.setPetro(wmf_petro_sat)
 
 #%% step 3, setup handler 
 ## create handler
-h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=100, 
+h = handler(dname=sim_dir, ifac=1,tlength=int(secinday/10),iobs=10, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
-h.maxIter = 200
-h.rpmax = 1e4  
+h.maxIter = 300
+h.rpmax = 1e4
 h.drainage = None 
 h.clearDir()
 h.setMesh(mesh)
@@ -180,7 +182,7 @@ right_side_idx = (mesh.node[:,0] == maxx) # & (zone_node == 2)
 # right_side_idx = (mesh.node[:,0] == b1902x) 
 right_side_node = mesh.node[right_side_idx]
 right_side_topo = max(right_side_node[:,2])
-right_side_wt = right_side_topo - 7.5
+right_side_wt = right_side_topo - 5.0
 rs_delta = right_side_topo - right_side_wt 
 right_side_node_sat = right_side_node[right_side_node[:,2]<(right_side_topo-rs_delta)]
 dist, right_node = tree.query(right_side_node_sat[:,[0,2]])
@@ -271,7 +273,7 @@ ax.plot(TimeStamp,infil)
 pres = np.zeros(mesh.numnp)
 
 # compute pressure below water table 
-wt_depth = 8 #min(node_depths[pres==0])
+wt_depth = 5#min(node_depths[pres==0])
 bl_depth = node_depths - wt_depth 
 bl_idx = pres==0 
 pres[bl_idx] = (9810*bl_depth[bl_idx])#*10e3  
@@ -326,21 +328,21 @@ h.vlim = [0.0, 1.01]
 h.plot1Dresults()
 h.plotMeshResults(cmap='RdBu')
 
-h.attribute = 'Pressure'
-h.vmax = pmax
-h.vmin = pmin
-h.vlim = [pmin, pmax]
-h.plot1Dresults()
-h.plotMeshResults()
+# h.attribute = 'Pressure'
+# h.vmax = pmax
+# h.vmin = pmin
+# h.vlim = [pmin, pmax]
+# h.plot1Dresults()
+# h.plotMeshResults()
 
 h.callPetro()
 # h.callTempCorrect(temp_uncorrect, sdiy[::100]+[sdiy[-2],sdiy[-1]])
-h.attribute = 'Resistivity'
-h.vmax = 120
-h.vmin = 5
-h.vlim = [h.vmin, h.vmax]
-h.plot1Dresults()
-h.plotMeshResults()
+# h.attribute = 'Resistivity'
+# h.vmax = 120
+# h.vmin = 5
+# h.vlim = [h.vmin, h.vmax]
+# h.plot1Dresults()
+# h.plotMeshResults()
 
 
 # save mesh output 

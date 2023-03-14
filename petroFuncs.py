@@ -72,6 +72,9 @@ def gmc2sat(gmc,theta,ps,pw=1):
     denom = pw*theta
     return numon/denom 
 
+def vmc2sat(vwc,theta):
+    return vwc/theta 
+
 #%% generic fitting 
 def powerLaw(x,a,k,c):
     return (1/(a*(x**k))) + c 
