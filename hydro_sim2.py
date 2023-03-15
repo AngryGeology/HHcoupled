@@ -343,10 +343,12 @@ sw_times = np.arange(len(rain))*secinday
 rain[np.isnan(rain)] = 0 
 Pr = (rain*1e-3)/secinday
 Et = np.zeros_like(Pr)
+SSF.thick = 0.9
+WMF.thick = 0.9
 sw_ssf = SSF.estSw(Pr, Et, sw_times)
 sw_wmf = WMF.estSw(Pr, Et, sw_times)
 l0 = ax.plot(sw_dates,sw_ssf,c='y',label='SSF Sw')
-l1 = ax.plot(sw_dates,sw_wmf,c='k',label='SSF Sw')
+l1 = ax.plot(sw_dates,sw_wmf,c='k',label='WMF Sw')
 ax.set_ylabel('Sw (-)')
 ax.set_xlabel('Times(days)')
 axt = ax.twinx()

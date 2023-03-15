@@ -109,7 +109,7 @@ def unsatFlow(k,kr,por,sw,u,dp,rho=1000,g=9.81):
     rhs = dp - (rho*g)
     return lhs*rhs 
     
-def computeQFlux(Suz,maxSuz,sat,res,por,alpha,n,k,u):
+def computeQFlux(sw,sat,res,por,alpha,n,k,u):
     """
     Compute fluxes
 
@@ -126,14 +126,10 @@ def computeQFlux(Suz,maxSuz,sat,res,por,alpha,n,k,u):
         DESCRIPTION.
 
     """
-    if Suz > maxSuz: 
-        Suz = maxSuz 
-        print('WARNING: unsaturated storage exceeds maximum storage')
-    sw = Suz/maxSuz 
-    if sw<=res:
+    if sw<=res: # cant have unsaturated flow in this case 
         return 0 
     pc = invVGcurve(sw, sat, res, alpha, n)
-    kr = relK(sw,sat,res,n)
+    kr = relK(sw, sat, res, n)
     if kr<0: 
         kr = 0 
     elif kr>1:
@@ -162,9 +158,16 @@ def computeODE(Pe,Et,Suz,maxSuz,sat,res,por,alpha,n,k,u):
         DESCRIPTION.
 
     """
-    dSuz_dt = Pe - Et - computeQFlux(Suz, maxSuz, sat,res,por,alpha,n,k,u)
-    if Suz<=0 and dSuz_dt < 0: 
-        return 0 # ensure that storage cannot go negative 
+    if Suz > maxSuz: 
+        Suz = maxSuz 
+        print('WARNING: unsaturated storage exceeds maximum storage')
+    sw = Suz/maxSuz # Calculate saturation 
+    Qo = computeQFlux(sw,sat,res,por,alpha,n,k,u) # unsaturated flux 
+    dSuz_dt = Pe - Et - Qo 
+    if sw<=res and dSuz_dt < 0: 
+        return 0.0 # ensure that storage cannot go below residual saturation 
+    if sw>=sat and dSuz_dt > 0:
+        return 0.0 # ensure that storage cannot exceed capacity 
     return dSuz_dt
 
 def euler(x0, y0, dx, nsteps=10, func=None, **kwargs):
@@ -269,7 +272,7 @@ def backwardEuler(x0, y0, dx, nsteps=10, func=None, **kwargs):
             delta = y_calc - y_guess
             y_guess = y_guess + delta
             count+=1
-            if count>50:#break if 50 iterations exceeded (stops us from getting stuck indefinitely)
+            if count>100:#break if 50 iterations exceeded (stops us from getting stuck indefinitely)
                 flag = True
                 break
         y[i+1] = y_guess
@@ -283,12 +286,11 @@ def estSwfromRainfall(Pr,Et,ts,sat,res,por,alpha,n,k,u,ifac=10,
     if maxSuz is None: 
         maxSuz = por
     if Suz0 is None: 
-        Suz0 = maxSuz*res    
+        Suz0 = maxSuz*res
     pfunc = interp1d(ts, Pr)
     efunc = interp1d(ts, Et) 
     #define a wrapper function that can be passed to the euler scheme 
-    def f(t,Suz, #takes time and unsaturated storage as input 
-          maxSuz=maxSuz):
+    def f(t,Suz): #takes time and unsaturated storage as input 
         P = pfunc(t)
         E = efunc(t)
         diff = computeODE(P,E,Suz,maxSuz,sat,res,por,alpha,n,k,u)# compute ordinary differential equation 

@@ -682,6 +682,9 @@ class material:
         self.niter = None # number of iterations / model runs 
         self.pdist = 'normal'
         
+        # Sw estimation 
+        self.thick = 1 
+        
         if self.sat is None: 
             self.sat = 1 
         
@@ -827,7 +830,7 @@ class material:
             Pr,Et,ts,self.sat,self.res,
             self.theta_sat,self.alpha*1e-3,self.vn,
             self.perm, self.convert_cons['u'], 
-            ifac=48) 
+            ifac=48,maxSuz=self.thick*self.theta_sat) 
         return sw 
         
     
