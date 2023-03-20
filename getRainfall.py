@@ -6,7 +6,7 @@ compute effective rainfall for cosmos data
 @author: jimmy
 """
 import os 
-from datetime import datetime 
+from datetime import datetime,timedelta
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
@@ -59,6 +59,7 @@ pedates = [str2dt(pedf['DATE_TIME'][i]) for i in range(len(pedf))]
 # find each day we have PE data and get the precipitation  
 pe = pedf['PE'].values 
 pr = prdf['PRECIP'].values 
+vwc = pedf['COSMOS_VWC'].values 
 prmatched = np.array([0]*len(pe),dtype=float) # holds the values of precipitation matched to the potential evap 
 effrain = np.array([0]*len(pe), dtype=float) # holds effective rainfall values 
 filteridx = [False]*len(pe)#holds if in the desired time range 
@@ -68,7 +69,7 @@ for i in tqdm(range(len(pedf))):
     psum = 0 
     # perform some QC 
     if abs(pe[i]) > 9000:
-        pe[i] = float('nan')
+        pe[i] = 0 # float('nan')
     for j in range(len(prdf)): 
         d1 = prdates[j]
         # check if same day as precip measurement, otherwise continue 
@@ -79,8 +80,9 @@ for i in tqdm(range(len(pedf))):
         if d1.day != d0.day:
             continue 
         if abs(pr[j]) > 9000:
-            pr[j] = float('nan')
+            pr[j] = 0 # float('nan')
         psum += pr[j]
+        # break 
     
     prmatched[i] = psum
     effrain[i] = psum - pe[i]
@@ -104,11 +106,37 @@ ax.plot(pedates,effrain)
 #%% EFF RAINFALL OUTPUT 
 df = {'DATE_TIME':pedates,
       'PE':pe,
+      'VWC':vwc, 
       'PRECIP':prmatched,
       'EFF_RAIN':effrain}
 
 df = pd.DataFrame(df)
 df.to_csv(os.path.join('Data','Rainfall','COSMOS_2013-2018.csv'),index=False)
 
-# now filter down to just 2015  and 2016 
-df[filteridx].to_csv(os.path.join('Data','Rainfall','COSMOS_2015-2016.csv'),index=False)
+# now filter down to just 2014  and 2016 
+df_fil = df[filteridx].reset_index() 
+df_fil.drop(columns='index',inplace=True)
+
+#%% create a dummy dataset for 6 months at the beginning of 2014. 
+pedates_warm = []
+warm_date = datetime(2014,1,1)
+warm_dates = [] 
+delta = timedelta(days=1)
+c = 0 
+while warm_date<df_fil['DATE_TIME'][0]:
+    warm_dates.append(warm_date)
+    warm_date += delta 
+    c += 1 
+   
+df_warm = {
+    'DATE_TIME':warm_dates,
+    'PE':np.zeros(c,dtype=float),
+    'VWC':np.zeros(c,dtype=float), 
+    'PRECIP':np.zeros(c,dtype=float),
+    'EFF_RAIN':np.zeros(c,dtype=float)}
+
+df_warm = pd.DataFrame(df_warm)
+
+#%% output 
+master = pd.concat([df_warm,df_fil])
+master.to_csv(os.path.join('Data','Rainfall','HydroForcing.csv'),index=False)

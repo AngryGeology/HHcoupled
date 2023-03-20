@@ -137,6 +137,35 @@ def computeQFlux(sw,sat,res,por,alpha,n,k,u):
     Qo = unsatFlow(k, kr, por, sw, u, pc)
     return Qo 
     
+def computeEFlux(sw,Et,res,sat):
+    """
+    Compute evaporation flux 
+
+    Parameters
+    ----------
+    sw : TYPE
+        DESCRIPTION.
+    Et : TYPE
+        DESCRIPTION.
+    res : TYPE
+        DESCRIPTION.
+    sat : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    if sw <= res: 
+        return 0
+    elif sw>=sat: 
+        return Et 
+    else:
+        thetan = (sw-res)/(sat-res)
+        return thetan*Et
+    
+    
 def computeODE(Pe,Et,Suz,maxSuz,sat,res,por,alpha,n,k,u):
     """
     Compute ordinary differential equations. 
@@ -163,11 +192,12 @@ def computeODE(Pe,Et,Suz,maxSuz,sat,res,por,alpha,n,k,u):
         print('WARNING: unsaturated storage exceeds maximum storage')
     sw = Suz/maxSuz # Calculate saturation 
     Qo = computeQFlux(sw,sat,res,por,alpha,n,k,u) # unsaturated flux 
-    dSuz_dt = Pe - Et - Qo 
+    Ea = computeEFlux(sw,Et,res,sat)
+    dSuz_dt = Pe - Ea - Qo 
     if sw<=res and dSuz_dt < 0: 
         return 0.0 # ensure that storage cannot go below residual saturation 
-    if sw>=sat and dSuz_dt > 0:
-        return 0.0 # ensure that storage cannot exceed capacity 
+    if sw==1.0 and dSuz_dt >= 0:
+        return 0.0# ensure that storage cannot exceed capacity 
     return dSuz_dt
 
 def euler(x0, y0, dx, nsteps=10, func=None, **kwargs):

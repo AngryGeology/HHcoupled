@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import pandas as pd 
 from tqdm import tqdm
 from joblib import Parallel, delayed
+from scipy.spatial import cKDTree
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 # custom module 
 from swEstimator import estSwfromRainfall 
@@ -808,7 +809,7 @@ class material:
         if 'K' in self.MCparam.keys(): 
             self.convertk2K()
         
-    def estSw(self,Pr,Et,ts):
+    def estSw(self,Pr,Et,ts,start_sw=None):
         """
         Estimate Sw from rainfall  
 
@@ -826,11 +827,16 @@ class material:
         sw : Array 
             Saturation fraction estimation.
         """
+        maxSuz = self.thick*self.theta_sat
+        Suz0 = maxSuz*self.res 
+        if not start_sw is None:
+            Suz0 = maxSuz*start_sw 
         sw = estSwfromRainfall(
             Pr,Et,ts,self.sat,self.res,
             self.theta_sat,self.alpha*1e-3,self.vn,
             self.perm, self.convert_cons['u'], 
-            ifac=48,maxSuz=self.thick*self.theta_sat) 
+            ifac=48,maxSuz=maxSuz,Suz0=Suz0
+            ) 
         return sw 
         
     
@@ -1128,7 +1134,7 @@ class handler:
                          'temp_val':temp_val, 
                          'general_node':general_node,
                          'general_type':general_type,
-                         'solver':solver}
+                         'solver':solver.upper()}
         
     # WRITE functions
     def writeInp(self,dirname=None,variable_pressure=False):
@@ -1213,7 +1219,8 @@ class handler:
         fh.write('# Data Set 6\n')
         fh.write('2 1 1\n')  # NSCH NPCYC NUCYC
         # old way to internal scheduling, we need a TIME_STEPS though
-        fh.write("'TIME_STEPS' 'TIME CYCLE' 'ELAPSED' %i %i 0 1.e+99 1. 1 1. 1.e-20 1\n"%(scalt/ifac,len(isteps))) #SCHNAM SCHTYP CREFT SCALT NTMAX TIMEI TIMEL TIMEC NTCYC TCMULT TCMIN TCMAX
+        #SCHNAM SCHTYP CREFT SCALT NTMAX TIMEI TIMEL TIMEC NTCYC TCMULT TCMIN TCMAX
+        fh.write("'TIME_STEPS' 'TIME CYCLE' 'ELAPSED' %i %i 0 1.e+99 1. 1 1. 1.e-20 1\n"%(scalt/ifac,len(isteps))) 
     
         self.resultNsteps = nsteps 
         # define time steps in input file here
@@ -1248,16 +1255,17 @@ class handler:
         else: # use non linear solver 
             # Data Set 7B - equation solver for pressure solution (using non direct methods)
             fh.write('# Data Set 7B\n')
-            fh.write("'GMRES' 1000 1e2\n") #CSOLVP | ITRMXP TOLP
+            fh.write("'%s' 1000 %e\n"%(solver,1e-8)) #CSOLVP | ITRMXP TOLP
         
             # Data Set 7C - equation solver for transport solution 
             fh.write('# Data Set 7C\n')
-            fh.write("'GMRES' 1000 1e2\n") #CSOLVP | ITRMXP TOLP
+            # fh.write("'%s' 1000 %e\n"%(solver,1e2)) #CSOLVP | ITRMXP TOLP
+            fh.write("'GMRES' 1000 1e2\n")
     
         # Start_inpe  - output options
         fh.write('# Data Set 8\n')
         # NPRINT CNODAL CELMNT CINCID CPANDS CVEL CCORT CBUDG CSCRN CPAUSE
-        fh.write("%i 'N' 'N' 'N' 'Y' 'N' 'N' 'Y' 'Y' 'Y' 'Data Set 8A'\n"%ifac)
+        fh.write("%i 'N' 'Y' 'N' 'Y' 'N' 'N' 'Y' 'Y' 'Y' 'Data Set 8A'\n"%self.iobs)
         # NCOLPR NCOL ..
         fh.write("%i 'N' 'X' 'Y' 'U' 'S' 'P' '-' 'Data Set 8B'\n"%self.iobs)
         fh.write("%i 'E' 'VX' 'VY' '-' 'Data Set 8C'\n"%self.iobs)  # LCOLPR LCOL ..
@@ -1891,6 +1899,23 @@ class handler:
         
         if self.closeFigs:
             plt.close(fig)
+            
+    def get1Dvalues(self,xp,yp):
+        a = np.array([0]*self.resultNsteps,dtype=float)
+        step=self.nodResult['step%i'%0]
+        X = np.array(step['X']) # x values 
+        Y = np.array(step['Y']) # elevation values 
+        tree = cKDTree(np.c_[X,Y])
+        dist,idx = tree.query(np.c_[[xp],[yp]])
+        for i in range(self.resultNsteps): 
+            step=self.nodResult['step%i'%i]
+            arr = np.array(step[self.attribute]) # array of node values 
+            a[i] = arr[idx[0]]
+            # if any(np.isnan(arr)==True):
+            #     return 
+            
+        return a 
+
             
     def plot1Dresults(self,clean_dir = True):
         n = self.resultNsteps
