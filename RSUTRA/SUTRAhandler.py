@@ -429,6 +429,90 @@ def readNod(fname):
     fh.close()
     return data,n 
 
+def readMassBlnc(fname):
+    fh = open(fname,'r')
+    # tline = 'T E M P O R A L   C O N T R O L   A N D   S O L U T I O N   C Y C L I N G   D A T A'
+    tline = 'MAXIMUM NUMBER OF TIMES AFTER INITIAL TIME'
+    fline = 'F L U I D   M A S S   B U D G E T' # fluid line 
+    # find number of time steps 
+    line = fh.readline()
+    c = 0 
+    ntime = 0 
+    while True:
+        if tline in line: 
+            ntime = int(line.strip().split()[0])
+            line = fh.readline()
+            break 
+        if c>10000:
+            raise Exception('Couldnt find number of time steps')
+            break 
+        line = fh.readline()
+        c+=1 
+    
+    times = [0]*ntime 
+    massinPc = [0]*ntime # mass in due to change in pressure  
+    massinCc = [0]*ntime # mass in due to change in concentration  
+    massinSs = [0]*ntime # mass in at source / sink nodes  
+    massinPn = [0]*ntime # mass in pressure nodes  
+    massinGn = [0]*ntime # mass in at generalised flow nodes   
+    
+    massotPc = [0]*ntime # mass out due to change in pressure  
+    massotCc = [0]*ntime # mass out due to change in concentration  
+    massotSs = [0]*ntime # mass out at source / sink nodes  
+    massotPn = [0]*ntime # mass out pressure nodes  
+    massotGn = [0]*ntime # mass out at generalised flow nodes   
+    i=0 
+    break_condition = 0 
+    while True: 
+        if fline in line: 
+            tmp = line.strip().split()
+            ti = tmp.index('STEP')+1
+            times[i] = int(tmp[ti].replace(',',''))
+            # now to parse mass in and out 
+            for j in range(20):
+                line = fh.readline()
+                tmp = line.strip().split() 
+                if 'PRESSURE CHANGE' in line:
+                    massinPc[i] = float(tmp[-3])
+                    massotPc[i] = float(tmp[-2])
+                if 'CONCENTRATION CHANGE' in line:
+                    massinCc[i] = float(tmp[-3])
+                    massotCc[i] = float(tmp[-2])
+                if 'SOURCES AND SINKS' in line:
+                    massinSs[i] = float(tmp[-3])
+                    massotSs[i] = float(tmp[-2])
+                if 'SPECIFIED P NODES' in line:
+                    massinPn[i] = float(tmp[-3])
+                    massotPn[i] = float(tmp[-2])
+                if 'GEN.-FLOW NODES' in line:
+                    massinGn[i] = float(tmp[-3])
+                    massotGn[i] = float(tmp[-2])
+            i+=1 
+        if line =='':
+            break_condition += 1 
+        else:
+            break_condition = 0
+        if break_condition > 10000:
+            break 
+        line = fh.readline()
+    fh.close() 
+    
+    # output for parsing 
+    output = {
+        'times':times,
+        'massinPc':massinPc,  
+        'massinCc':massinCc,  
+        'massinSs':massinSs,  
+        'massinPn':massinPn,  
+        'massinGn':massinGn,   
+        'massotPc':massotPc,  
+        'massotCc':massotCc,  
+        'massotSs':massotSs,  
+        'massotPn':massotPn,  
+        'massotGn':massotGn,
+        }
+    return output  
+
 #%% run sutra (in parallel)
 def doSUTRArun(wd,execpath=None,return_data=True): # single run of sutra 
     if wd is None:
@@ -565,7 +649,8 @@ def protocolParser(fname, ip=False, fwd=False):
         df['ip'] = np.nan
     return dfelec, df
 
-def runR2runs(wd,execpath=None,surrogate='resistivity.dat',return_data=False):
+def runR2runs(wd,execpath=None,surrogate='resistivity.dat',return_data=False,
+              clean=True):
     """
     Run R2 (or R3t) for multiple forward runs
 
@@ -643,6 +728,11 @@ def runR2runs(wd,execpath=None,surrogate='resistivity.dat',return_data=False):
         
         shutil.copy(os.path.join(wd,fwd_file),
                     os.path.join(wd,'forward%i.dat'%i))
+        
+        if clean:
+            # clean up excess files 
+            os.remove(os.path.join(wd,step))
+            os.remove(os.path.join(wd,'protocol%i.dat'%i))
             
         if return_data:
             elec,df = protocolParser(os.path.join(wd,fwd_file))
@@ -926,6 +1016,7 @@ class handler:
         self.nodResultMulti = {} 
         self.resultNsteps = 0
         self.resFwdMdls = {} # holds forward model results from R family of codes 
+        self.massBalance = None 
         
         # set the number of cpus to use in parallised functions 
         self.ncpu = ncpu 
@@ -1377,9 +1468,9 @@ class handler:
                 elif general_type[i]  == 'drain':
                     line = "%i -1. 0. 100000. -%e 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
-                    line = "%i %e, 0. %e 0. 'P' 'Q' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                    line = "%i %e, 0. %e 0. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
-                                                                                   self.pressure[i]*10)#+9180)
+                                                                                   self.pressure[i]*+(2*9180))
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     
@@ -1850,11 +1941,14 @@ class handler:
         if self.closeFigs:
             plt.close(fig)
     
-    def plotMeshResults(self,time_units='day',cmap='Spectral'):
+    def plotMeshResults(self,time_units='day',cmap='Spectral',iobs=10):
         n = self.resultNsteps
         desc = 'Plotting steps'
         warnings.filterwarnings("ignore")
+        steps = np.arange(n)[0::iobs].tolist()
         for i in tqdm(range(n),ncols=100, desc=desc):
+            if i not in steps:
+                continue 
             self.plotMesh(i,time_units,cmap)
             
     def plot1Dresult(self,n=0,x=None,time_units='day'):
@@ -1917,7 +2011,7 @@ class handler:
         return a 
 
             
-    def plot1Dresults(self,clean_dir = True):
+    def plot1Dresults(self,clean_dir = True, iobs=1):
         n = self.resultNsteps
         desc = 'Plotting steps'
         warnings.filterwarnings("ignore")
@@ -1930,8 +2024,10 @@ class handler:
             for f in files: # remove old files 
                 if f.endswith('.png'):
                     os.remove(os.path.join(dirname,f))
-        
+        steps = np.arange(n)[0::iobs].tolist()
         for i in tqdm(range(n),ncols=100, desc=desc):
+            if i not in steps:
+                continue 
             self.plot1Dresult(i)
         
 
