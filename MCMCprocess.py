@@ -115,9 +115,9 @@ dirname = 'Models/HydroMCMC'
 # dirname = 'SyntheticStudy/Models/MCMC(no_error)/' 
 dists = {0:['gauss','bimodal'],
           1:['bimodal','bimodal']}
-# dists = {0:['gauss','gauss'],
-#           1:['gauss','gauss']}
-pt_threshold = 0.025
+dists = {0:['gauss','gauss'],
+          1:['gauss','gauss']}
+pt_threshold = 0.001
 # pt_threshold = 0.45
 
 savfig=False
@@ -189,34 +189,37 @@ for i in range(nzones):
     disty = distribution(y,dists[i][1],100)
     scatter_hist(x, y, axs[i], axs['hist_x%i'%i], axs['hist_y%i'%i])
     # fit a histogram (to the better fitting selections)
-    px = distx.fit()
-    py = disty.fit()
-    # following code plots the fit on the histograms 
-    lx = np.linspace(min(x), max(x), 100)
-    ly = np.linspace(min(y), max(y), 100)
-    distx.plot(axs['hist_x%i'%i],'r')
-    disty.plot(axs['hist_y%i'%i],'r',ydom=True)
-
-    params[i]['alpha'] = px[0]
-    params[i]['alpha_std'] = px[1]
-    params[i]['n'] = py[0]
-    params[i]['n_std'] = py[1]
+    try: 
+        px = distx.fit()
+        py = disty.fit()
+        # following code plots the fit on the histograms 
+        lx = np.linspace(min(x), max(x), 100)
+        ly = np.linspace(min(y), max(y), 100)
+        distx.plot(axs['hist_x%i'%i],'r')
+        disty.plot(axs['hist_y%i'%i],'r',ydom=True)
     
-    
-    print('Fitting statistics for zone %i:'%n)
-    if dists[i][0] == 'bimodal':
-        print('Alpha 1: %f +/- %f (1/m)'%(px[0],px[1]))
-        print('Alpha 2: %f +/- %f (1/m)'%(px[3],px[4]))
-    else:
-        print('Alpha : %f +/- %f (1/m)'%(px[0],px[1]))
-    if dists[i][1] == 'bimodal':
-        print('N 1: %f +/- %f (-)'%(py[0],py[1]))
-        print('N 2: %f +/- %f (-)'%(py[3],py[4]))
-    else:
-        print('N : %f +/- %f (-)'%(py[0],py[1]))
-    print('\n')
-    nsample = len(df['alpha_%i'%n][stable][idx])
-    print('Nsample = %i'%nsample)
+        params[i]['alpha'] = px[0]
+        params[i]['alpha_std'] = px[1]
+        params[i]['n'] = py[0]
+        params[i]['n_std'] = py[1]
+        
+        
+        print('Fitting statistics for zone %i:'%n)
+        if dists[i][0] == 'bimodal':
+            print('Alpha 1: %f +/- %f (1/m)'%(px[0],px[1]))
+            print('Alpha 2: %f +/- %f (1/m)'%(px[3],px[4]))
+        else:
+            print('Alpha : %f +/- %f (1/m)'%(px[0],px[1]))
+        if dists[i][1] == 'bimodal':
+            print('N 1: %f +/- %f (-)'%(py[0],py[1]))
+            print('N 2: %f +/- %f (-)'%(py[3],py[4]))
+        else:
+            print('N : %f +/- %f (-)'%(py[0],py[1]))
+        print('\n')
+        nsample = len(df['alpha_%i'%n][stable][idx])
+        print('Nsample = %i'%nsample)
+    except:
+        print('Couldnt fit optimal parameters')
     
     figure_file = os.path.join(dirname,'mcmc_figure_zone%i.png'%i)
     if savfig: 

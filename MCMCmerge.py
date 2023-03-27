@@ -7,13 +7,14 @@ Merge MCMC logs
 import os 
 import pandas as pd 
 
-dirname = 'SyntheticStudy/Models/MCMC'
+dirname = 'Models/HydroMCMC'
+# dirname = 'SyntheticStudy/Models/MCMC'
 
 entries = os.listdir(dirname)
 chain_dirs = []
 chain_ids = []
 for e in entries: 
-    if 'chain' in e:
+    if 'chain' in e and os.path.isdir(os.path.join(dirname,e)):
         chain_dirs.append(os.path.join(dirname,e))
         chain_ids.append(int(e.replace('chain','')))
         

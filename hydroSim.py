@@ -6,6 +6,7 @@ Hydrological simulation of Hollin Hill, with option of simulating resistivity to
 @author: jimmy
 """
 import os, sys, shutil, time 
+from datetime import timedelta
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
@@ -19,7 +20,8 @@ if sys.platform == 'linux' and linux_r_path not in sys.path:
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
     sys.path.append(win_r_path)
 from SUTRAhandler import handler, material 
-from petroFuncs import ssf_petro_sat, wmf_petro_sat 
+from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect
+from petroFuncs import wmf_petro_sat_shallow
 import createInput as ci 
 from createInput import secinday 
 from resipy import Project
@@ -40,17 +42,25 @@ for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-
-model_res = False 
+model_res = True 
 
 #%% load in the data 
 elec = ci.HH_getElec()
-hydro_data, data_seq, sequences, survey_keys, rfiles = ci.HH_data(12)
+hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.HH_data(12)
 TimeStamp = np.arange(len(hydro_data))
 times = np.asarray(TimeStamp, dtype=int)
 
+
+## interpolate missing vwc values 
+cosmos_vwc = hydro_data['VWC'].values
+nanidx = cosmos_vwc<0
+x = np.arange(len(cosmos_vwc))
+cosmos_vwc[nanidx] = np.interp(x[nanidx],
+                               x[np.invert(nanidx)],
+                               cosmos_vwc[np.invert(nanidx)])
+
 #%% create mesh with some pressure conditions 
-mesh, zone_flags, dx, pressures, boundaries = ci.HH_mesh(True)
+mesh, zone_flags, dx, pressures, boundaries = ci.HH_mesh(False)
 
 # create boundary conditions 
 general_node = []
@@ -62,10 +72,22 @@ general_node += boundaries['left'].tolist()
 general_type += ['seep']*len(boundaries['left'])
 general_pressure += [0.0]*len(boundaries['left'])
 
+# set top side as seepage boundary 
+general_node += boundaries['top'].tolist()
+general_type += ['seep']*len(boundaries['top'])
+general_pressure += [0.0]*len(boundaries['top'])
+
 # set basal nodes as pressure boundary 
 general_node += boundaries['bottom'].tolist()
 general_type += ['pres']*len(boundaries['bottom'])
 general_pressure += pressures['base'].tolist()
+
+# set right nodes to hold pressure
+# right_pressure = pressures['nodal'][boundaries['right']]
+# idx = right_pressure > 0
+# general_node += boundaries['right'][idx].tolist()
+# general_type += ['pres']*len(boundaries['right'][idx])
+# general_pressure += pressures['nodal'][boundaries['right'][idx]].tolist() 
 
 # set top boundary as source nodes 
 source_node = boundaries['top'] + 1 
@@ -81,29 +103,30 @@ general_pressure = np.array(general_pressure)
 ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
 pet=hydro_data['PE'].values/secinday 
-numnp = mesh.numnp 
-tdx = sum(dx)
-fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,numnp,ntimes)
+kc=hydro_data['Kc'].values 
+tdx = sum(dx)/2
+fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc,len(source_node),ntimes)
 #rainfall is scaled by the number of elements 
 
-# show input 
-fig,ax = plt.subplots()
-ax.bar(hydro_data['datetime'],hydro_data['PRECIP'].values,color='b')
-ax.bar(hydro_data['datetime'],-hydro_data['PE'].values*0.4,color='r')
-ax.set_ylabel('rainfall (mm/day)')
-ax.set_xlabel('date')
-
 #%% create materials 
-SSF = material(Ksat=0.14,theta_res=0.06,theta_sat=0.38,
-               alpha=0.2,vn=1.52,name='STAITHES')
+# SSF properties from grid search 
+SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
+                alpha=1.11,vn=1.57,name='STAITHES')
+# SSF properties from curve fitting 
+# SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
+#                 alpha=0.9,vn=1.5,name='STAITHES')
+# WMF properties from grid search 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-               alpha=0.1,vn=1.32,name='WHITBY')
-RMF = material(Ksat=0.13,theta_res=0.1,theta_sat=0.48,
+                alpha=0.67,vn=2.0,name='WHITBY')
+# wmf properties from curve fitting 
+# WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
+#                 alpha=0.08,vn=1.25,name='WHITBY')
+RMF = material(Ksat=0.64,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
-SSF.setPetro(ssf_petro_sat)
-WMF.setPetro(wmf_petro_sat)
-RMF.setPetro(wmf_petro_sat)
+SSF.setPetroFuncs(ssf_petro_sat,ssf_petro_sat)
+WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
+RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 #%% create handler 
 h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1, 
@@ -111,7 +134,7 @@ h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1,
             transport = 'transient',
             sim_type='solute')
 h.maxIter = 300
-h.rpmax = 1e4
+h.rpmax = 5e5
 h.drainage = 1e-8
 h.clearDir()
 h.setMesh(mesh)
@@ -134,7 +157,7 @@ h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
 
-h.showSetup() 
+h.showSetup(save=True) 
 
 setup_time = time.time() - c0 
 c0 = time.time() 
@@ -144,7 +167,13 @@ h.runSUTRA()  # run
 h.getResults()  # get results
 hydro_run_time = time.time() - c0
 
-#%% step10, plot results (if you want to)
+#%% plot results (if you want to)
+# show input 
+fig,ax = plt.subplots()
+ax.bar(hydro_data['datetime'],hydro_data['PRECIP'].values,color='b')
+ax.bar(hydro_data['datetime'],-hydro_data['PE'].values*hydro_data['Kc'].values,color='r')
+ax.set_ylabel('rainfall (mm/day)')
+ax.set_xlabel('date')
 ## plot up results (on mesh only)
 # get max/min temperature
 data = h.nodResult
@@ -166,20 +195,44 @@ h.vmax = 1.01
 h.vmin = 0.2
 h.vlim = [0.0, 1.01]
 h.plot1Dresults(iobs=10)
+h.plotMeshResults(cmap='RdBu',iobs=10)
+
 sw_ssf = h.get1Dvalues(58.8, 74.8)[1:]
 sw_wmf = h.get1Dvalues(129, 90)[1:]
 axt = ax.twinx()
-axt.plot(hydro_data['datetime'],sw_ssf,c='y',label='ssf')
-axt.plot(hydro_data['datetime'],sw_wmf,c='m',label='wmf')
+axt.plot(hydro_data['datetime'][0:len(sw_ssf)],sw_ssf,c='y',label='ssf')
+axt.plot(hydro_data['datetime'][0:len(sw_ssf)],sw_wmf,c='m',label='wmf')
 axt.set_ylabel('Sw (-)')
-
-h.plotMeshResults(cmap='RdBu',iobs=10)
+# show cosmos estimate too 
+maxvwc = max(hydro_data['VWC'])
+axt.plot(hydro_data['datetime'],hydro_data['VWC']/maxvwc,c='b',label='cosmos')
+axt.legend()
+fig.set_size_inches(12,6)
+fig.savefig(os.path.join(h.dname,'Sw_track.png'))
 
 # h.attribute = 'Pressure'
 # h.vmax = pmax
 # h.vmin = pmin
 # h.vlim = [pmin, pmax]
 # h.plot1Dresults()
+
+massdf = h.massBalance
+fig,axs = plt.subplots(nrows=2)
+massin = (hydro_data['PRECIP'].values/ci.secinday)*tdx
+massot = (hydro_data['PE'].values/ci.secinday)*tdx
+massdf_day = [hydro_data['datetime'][i] + timedelta(days=1) for i in range(len(hydro_data))]
+axs[0].bar(hydro_data['datetime'],massin,color='b')
+axs[0].bar(hydro_data['datetime'],-massot,color='r')
+axs[1].bar(massdf_day,massdf['massinSs'],color=(0,0,1,0.5))
+axs[1].bar(massdf_day,massdf['massotSs'],color=(1,0,0,0.5))
+
+for i in range(2):
+    axs[i].set_ylabel('Total fluid flow (kg/s)')
+axs[-1].set_xlabel('Datetime')
+
+fig.set_size_inches(12,8)
+fig.savefig(os.path.join(h.dname,'fluid_comparison.png'))
+
 
 #%% run resistivity runs
 res_run_time = 0 
@@ -209,7 +262,8 @@ if model_res:
     
     # now setup R2 folders 
     c0 = time.time() 
-    h.setupRruns(write2in,run_keys,survey_keys,sequences)
+    h.setupRruns(write2in,run_keys,survey_keys,sequences,
+                 tfunc=temp_uncorrect,diy=sdiy)
     
     #now go through and run folders 
     h.runResFwdmdls(run_keys)

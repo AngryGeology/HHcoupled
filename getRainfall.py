@@ -99,8 +99,59 @@ effrain[nanidx] = np.interp(peids[nanidx],peids[numidx],effrain[numidx])
 
 #%% plot 
 fig, ax = plt.subplots()
-ax.plot(pedates,prmatched)
-ax.plot(pedates,effrain)
+ax.bar(pedates,prmatched,color='b')
+ax.bar(pedates,-pe,color='r')
+
+#%% scan 7 day intervals to get Kc 
+lookup={'low':0.8,'mod':0.6,'hi':0.4,'v.hi':0.3}
+def getAllenKc(rval):
+    if rval < 3:
+        Kc = lookup['low']
+    elif rval >= 3 and rval < 5:
+        Kc = lookup['mod']
+    elif rval >= 5 and rval < 7:
+        Kc = lookup['hi']
+    else:
+        Kc = lookup['v.hi']
+    return Kc
+
+nobs = len(pedates)
+rval = 0 
+Kc = 0 
+kcmatched = [0]*nobs 
+wdmatched = [0]*nobs 
+
+for i in range(nobs): 
+    wdmatched[i] = pedates[i].weekday()
+pstore = []
+istore = []
+c = 0 
+i = 0 
+while i<(nobs):
+    for j in range(7):
+        weekday = pedates[i].weekday() 
+        pstore.append(prmatched[i]) 
+        istore.append(i)
+        # print(pstore)
+        c+=1
+        i+=1 
+        if weekday == 6:
+            break 
+        if i == nobs:
+            break 
+    rval = max(pstore) # max rainfall event in week 
+    Kc = getAllenKc(rval)
+    for j in istore: 
+        kcmatched[j] = Kc
+
+    # reset 
+    istore = [] 
+    pstore = []
+    c = 0 
+
+axt = ax.twinx()
+axt.plot(pedates, kcmatched,color=(0.2,0.2,0.2,0.5))
+axt.set_ylabel('Crop coefficient (-)')
 
 
 #%% EFF RAINFALL OUTPUT 
@@ -108,6 +159,7 @@ df = {'DATE_TIME':pedates,
       'PE':pe,
       'VWC':vwc, 
       'PRECIP':prmatched,
+      'Kc':kcmatched, 
       'EFF_RAIN':effrain}
 
 df = pd.DataFrame(df)
@@ -116,6 +168,7 @@ df.to_csv(os.path.join('Data','Rainfall','COSMOS_2013-2018.csv'),index=False)
 # now filter down to just 2014  and 2016 
 df_fil = df[filteridx].reset_index() 
 df_fil.drop(columns='index',inplace=True)
+    
 
 #%% create a dummy dataset for 6 months at the beginning of 2014. 
 pedates_warm = []
@@ -132,7 +185,8 @@ df_warm = {
     'DATE_TIME':warm_dates,
     'PE':np.zeros(c,dtype=float),
     'VWC':np.zeros(c,dtype=float), 
-    'PRECIP':np.zeros(c,dtype=float),
+    'PRECIP':np.zeros(c,dtype=float)+0.4,
+    'Kc':np.zeros(c,dtype=float), 
     'EFF_RAIN':np.zeros(c,dtype=float)}
 
 df_warm = pd.DataFrame(df_warm)

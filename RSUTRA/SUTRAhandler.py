@@ -764,6 +764,7 @@ class material:
         
         # petro physical translation 
         self.petro_func = None 
+        self.shallow_threshold = 1.5 
         
         # zone properties 
         self.zone = 0 # this will get reassigned when interfacing SUTRA handler 
@@ -838,8 +839,21 @@ class material:
         self.petro_func = func 
         # self.petro_param = param 
         
+    def setPetroFuncs(self,func0,func1):
+        """
+        Set petrophysical transfer functions for more than one depth, 
+        takes saturation as only input. 
+
+        Returns
+        -------
+        None.
+
+        """
+        self.petro_func = func1 
+        self.petro_func_shallow = func0 
+        self.petro_func_deep = func1 
         
-    def petro(self,S):
+    def petro(self,S,d=None):
         """
         Solve resistivity in terms of saturation 
 
@@ -854,7 +868,13 @@ class material:
             Resistivity values 
 
         """
-        res = self.petro_func(S)
+        if d is None: 
+            return self.petro_func(S)
+        res = np.zeros_like(S)
+        sidx = d < self.shallow_threshold
+        didx = np.invert(sidx)
+        res[didx]=self.petro_func_deep(S[didx])
+        res[sidx]=self.petro_func_shallow(S[sidx])
         return res 
     
     def pres(self,S):
@@ -925,7 +945,7 @@ class material:
             Pr,Et,ts,self.sat,self.res,
             self.theta_sat,self.alpha*1e-3,self.vn,
             self.perm, self.convert_cons['u'], 
-            ifac=48,maxSuz=maxSuz,Suz0=Suz0
+            ifac=24,maxSuz=maxSuz,Suz0=Suz0
             ) 
         return sw 
         
@@ -1313,7 +1333,7 @@ class handler:
         #SCHNAM SCHTYP CREFT SCALT NTMAX TIMEI TIMEL TIMEC NTCYC TCMULT TCMIN TCMAX
         fh.write("'TIME_STEPS' 'TIME CYCLE' 'ELAPSED' %i %i 0 1.e+99 1. 1 1. 1.e-20 1\n"%(scalt/ifac,len(isteps))) 
     
-        self.resultNsteps = nsteps 
+        self.resultNsteps = len(isteps) # number of time steps expected in results 
         # define time steps in input file here
         if self.flow.upper() == 'TRANSIENT':
             if variable_pressure: 
@@ -1346,7 +1366,7 @@ class handler:
         else: # use non linear solver 
             # Data Set 7B - equation solver for pressure solution (using non direct methods)
             fh.write('# Data Set 7B\n')
-            fh.write("'%s' 1000 %e\n"%(solver,1e-8)) #CSOLVP | ITRMXP TOLP
+            fh.write("'%s' 100 %e\n"%(solver,1e-5)) #CSOLVP | ITRMXP TOLP
         
             # Data Set 7C - equation solver for transport solution 
             fh.write('# Data Set 7C\n')
@@ -1470,7 +1490,7 @@ class handler:
                 elif general_type[i] == 'pres':
                     line = "%i %e, 0. %e 0. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
-                                                                                   self.pressure[i]*+(2*9180))
+                                                                                   self.pressure[i]+(2*9180))
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     
@@ -1848,9 +1868,22 @@ class handler:
         self.resultNsteps = n 
         print('%i time steps read'%n)  
         
+    def getMsBnc(self):
+        # parse lst file to get mass balance information 
+        files = os.listdir(self.dname)
+        fname = '.lst'
+        for f in files:
+            if f.endswith('.lst'):
+                fname = os.path.join(self.dname,f) # then we have found the .nod file 
+                break 
+        parse = readMassBlnc(fname)
+        df = pd.DataFrame(parse)
+        self.massBalance = df 
+        
     # get results 
     def getResults(self):
         self.getNod()
+        self.getMsBnc()
     
     # plotting functions 
     def plotNod(self, n=0): 
@@ -2398,7 +2431,7 @@ class handler:
         if survey_keys is None:
             survey_keys = [i for i in range(self.resultNsteps)]
         
-        flag_3d = False # only 2D coupling handled for now, 3D would require 
+        # flag_3d = False # only 2D coupling handled for now, 3D would require 
         # extra development 
         
         # local mesh zonation and other parameters 
@@ -2436,7 +2469,7 @@ class handler:
                 resNode = np.zeros_like(satNode)
                 for j,m in enumerate(self.materials):
                     zidx = zone == m.zone 
-                    resNode[zidx] = m.petro(satNode[zidx])
+                    resNode[zidx] = m.petro(satNode[zidx], depths_node[zidx])
                     if tcorrect:
                         resNode[zidx] = tfunc(resNode[zidx], depths_node[zidx], diy[count])
 
@@ -2498,7 +2531,9 @@ class handler:
     def getFwdRunResults(self,run_keys):
         nsurveys = len(self.survey_keys)
         data_store = {}
-        for run in run_keys:
+        nruns = len(run_keys)
+        for n in tqdm(range(nruns),desc='Retrieving R2 runs',ncols=100):
+            run = run_keys[n]
             pdir = self.pdirs[run]
             data_seq = pd.DataFrame()
             for i in range(nsurveys):

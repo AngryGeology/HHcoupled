@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Mar 20 15:59:20 2023
-Hydrological simulation of Hollin Hill, with option of simulating resistivity too! 
+Created on Fri Mar 24 13:10:02 2023
+
 @author: jimmy
 """
 import os, sys, shutil, time 
+from datetime import timedelta
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
@@ -18,26 +19,26 @@ if sys.platform == 'linux' and linux_r_path not in sys.path:
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
     sys.path.append(win_r_path)
-from SUTRAhandler import handler, material, normLike
+from SUTRAhandler import handler, material 
 from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect
 from petroFuncs import wmf_petro_sat_shallow
 import createInput as ci 
 from createInput import secinday 
 from resipy import Project
 from resipy.r2in import write2in # needed for forward modelling 
- 
-plt.close('all')
 
 c0 = time.time() 
 # create working environment 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    
+chainno = int(input("Enter Chain number: "))
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroGridSearchWMF')
-datadir = os.path.join(sim_dir,'SimData')
-for d in [model_dir,sim_dir,datadir]:
+sim_dir = os.path.join(model_dir,'HydroMCMC')
+chain_dir = os.path.join(sim_dir,'chain%i'%chainno)
+for d in [model_dir,sim_dir,chain_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
@@ -87,24 +88,34 @@ pet=hydro_data['PE'].values/secinday
 kc=hydro_data['Kc'].values 
 tdx = sum(dx)/2
 fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc, len(source_node),ntimes)
-#rainfall is scaled by the number of elements 
 
 #%% create materials 
-SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=1.11,vn=1.57,name='STAITHES')
-# WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-#                 alpha=0.67,vn=1.47,name='WHITBY')
+SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
+               alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-                alpha=0.08,vn=1.25,name='WHITBY')
-RMF = material(Ksat=0.64,theta_res=0.1,theta_sat=0.48,
+               alpha=0.012,vn=1.44,name='WHITBY')
+RMF = material(Ksat=0.13,theta_res=0.1,theta_sat=0.48,
                alpha=0.0126,vn=1.44,name='REDCAR')
 
 SSF.setPetroFuncs(ssf_petro_sat,ssf_petro_sat)
 WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
 RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
+# want to examine VG parameters for SSF and WMF 
+alpha_SSF = [0.001, 0.01, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.01, 2.0] 
+vn_SSF = [1.1, 0.05, 2.5]
+vn_WMF = [1.1, 0.05, 2.5]
+K_SSF = [0.14,0.1,0.64]
+
+ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
+wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
+
+SSF.setMCparam(ssf_param)
+WMF.setMCparam(wmf_param)
+
 #%% create handler 
-h = handler(dname=sim_dir, ifac=1,tlength=secinday,iobs=1, 
+h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
             flow = 'transient',
             transport = 'transient',
             sim_type='solute')
@@ -133,10 +144,7 @@ h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
 
-h.showSetup() 
-
-setup_time = time.time() - c0 
-c0 = time.time() 
+h.showSetup(True) 
 
 #%% setup R2 project for res modelling 
 k = Project(dirname=sim_dir)
@@ -147,80 +155,13 @@ h.setRproject(k)
 h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
 depths, node_depths = h.getDepths()
 
-#%% setup grid search 
-# want to examine VG parameters for SSF only for now 
-alpha_SSF = np.linspace(0.005, 2.0, 10)
-alpha_WMF = np.linspace(0.005, 2.0, 10)
-vn_SSF = np.linspace(1.05, 2.0, 10)
-vn_WMF = np.linspace(1.05, 2.0, 10)
-
-a0,n0 = np.meshgrid(alpha_SSF,vn_SSF)# ,alpha_WMF,vn_WMF)
-ssf_param = {'alpha':a0.flatten(),'vn':n0.flatten()}
-a1,n1 = np.meshgrid(alpha_WMF,vn_WMF)
-wmf_param = {'alpha':a1.flatten(),'vn':n1.flatten()}
-
-# SSF.setMCparam(ssf_param)
-WMF.setMCparam(wmf_param)
-
-h.setupMultiRun() 
-
-#%% run sutra 
- # run multi threaded for resistivity part 
+setup_time = time.time() - c0 
 c0 = time.time() 
-h.runMultiRun()
-run_keys = h.getMultiRun()
-hydro_run_time = time.time() - c0
 
-#%% run R2 
-# now setup R2 folders 
-c0 = time.time() 
-h.setupRruns(write2in,run_keys,survey_keys,sequences,
-             tfunc=temp_uncorrect,diy=sdiy)
-
-#now go through and run folders 
-h.runResFwdmdls(run_keys)
-data_store = h.getFwdRunResults(run_keys)
-res_run_time = time.time() - c0 
-
-#%% analyse plot up results 
-#now go through and run folders 
-likelihoods = [0]*len(data_store.keys())
-for i,key in enumerate(data_store.keys()):
-    fwd_data = data_store[key]
-    residuals = np.abs(fwd_data['tr'].values - data_seq['tr'].values)
-    likelihoods[i] = normLike(data_seq['error'].values, residuals)
-    
-alpha = []
-vn = []
-for run in run_keys:
-    alpha.append(h.runparam[run]['alpha'][1]) 
-    vn.append(h.runparam[run]['vn'][1])
-    
-# plot and save 
-fig,ax = plt.subplots()
-levels = np.linspace(0,max(likelihoods),100)
-cax = ax.tricontourf(alpha,vn,likelihoods,levels=levels)
-ax.set_xlabel('alpha (1/m)')
-ax.set_ylabel('n')
-cbar = plt.colorbar(cax) 
-cbar.set_label('Normalised Likelihood')
-
-best_fit = np.argmax(likelihoods)
-ssf_alpha = alpha[best_fit]
-ssf_vn = vn[best_fit]
-ax.scatter([ssf_alpha],[ssf_vn])
-
-fig.savefig(os.path.join(h.dname,'result.png'))
-df = pd.DataFrame({'alpha':alpha,
-                   'vn':vn,
-                   'normLike':likelihoods})
-df.to_csv(os.path.join(h.dname,'result.csv'),index=False)
-
-print(ssf_alpha,ssf_vn)
-
-#%% report some timings
-print('Setup time : %f'%setup_time)
-print('Hydrological model runtime: %f'%hydro_run_time)
-print('Resistivity modelling runtime: %f'%res_run_time)
-
-h.clearMultiRun()
+#%% run single mcmc single chain 
+nstep = 1000
+print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
+chainlog, ar = h.mcmc(nstep,0.234)
+df = pd.DataFrame(chainlog)
+df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
+print('Done.')

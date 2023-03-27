@@ -165,6 +165,8 @@ def computeEFlux(sw,Et,res,sat):
         thetan = (sw-res)/(sat-res)
         return thetan*Et
     
+def estimateEFlux(Et):
+    return 0.3*Et 
     
 def computeODE(Pe,Et,Suz,maxSuz,sat,res,por,alpha,n,k,u):
     """
@@ -189,14 +191,15 @@ def computeODE(Pe,Et,Suz,maxSuz,sat,res,por,alpha,n,k,u):
     """
     if Suz > maxSuz: 
         Suz = maxSuz 
-        print('WARNING: unsaturated storage exceeds maximum storage')
+
     sw = Suz/maxSuz # Calculate saturation 
     Qo = computeQFlux(sw,sat,res,por,alpha,n,k,u) # unsaturated flux 
     Ea = computeEFlux(sw,Et,res,sat)
+    # Ea = estimateEFlux(Et)
     dSuz_dt = Pe - Ea - Qo 
     if sw<=res and dSuz_dt < 0: 
         return 0.0 # ensure that storage cannot go below residual saturation 
-    if sw==1.0 and dSuz_dt >= 0:
+    if sw>=1.0 and dSuz_dt > 0:
         return 0.0# ensure that storage cannot exceed capacity 
     return dSuz_dt
 
@@ -312,17 +315,23 @@ def backwardEuler(x0, y0, dx, nsteps=10, func=None, **kwargs):
     return x, y
 
 def estSwfromRainfall(Pr,Et,ts,sat,res,por,alpha,n,k,u,ifac=10,
-                      maxSuz=None,t0=0,Suz0=None,backward=True):
+                      maxSuz=None,t0=0,Suz0=None,backward=False):
     if maxSuz is None: 
         maxSuz = por
     if Suz0 is None: 
         Suz0 = maxSuz*res
     pfunc = interp1d(ts, Pr)
     efunc = interp1d(ts, Et) 
+    global trigger_warning
+    trigger_warning = True 
     #define a wrapper function that can be passed to the euler scheme 
     def f(t,Suz): #takes time and unsaturated storage as input 
         P = pfunc(t)
         E = efunc(t)
+        global trigger_warning
+        if Suz > maxSuz and trigger_warning:
+            print('WARNING: unsaturated storage exceeds maximum storage')
+            trigger_warning=False 
         diff = computeODE(P,E,Suz,maxSuz,sat,res,por,alpha,n,k,u)# compute ordinary differential equation 
         #... so it effectively decouples unsaturated storage from canopy storage
         return diff # for the differential with respect to unsat storage want the second differential (index=1)
@@ -342,7 +351,7 @@ def estSwfromRainfall(Pr,Et,ts,sat,res,por,alpha,n,k,u,ifac=10,
     
     # return timesteps, approxSuz, approxSuz/maxSuz
     
-    sfunc = interp1d(timesteps, approxSuz/maxSuz,fill_value='extrapolate')
+    sfunc = interp1d(timesteps, approxSuz/maxSuz, fill_value='extrapolate')
     # print(max(timesteps),max(ts))
     
     return sfunc(ts)
