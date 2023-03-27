@@ -152,7 +152,7 @@ while i<(nobs):
 axt = ax.twinx()
 axt.plot(pedates, kcmatched,color=(0.2,0.2,0.2,0.5))
 axt.set_ylabel('Crop coefficient (-)')
-
+fig.savefig('Data/Rainfall/HydroForcing.png')
 
 #%% EFF RAINFALL OUTPUT 
 df = {'DATE_TIME':pedates,
@@ -193,4 +193,4 @@ df_warm = pd.DataFrame(df_warm)
 
 #%% output 
 master = pd.concat([df_warm,df_fil])
-master.to_csv(os.path.join('Data','Rainfall','HydroForcing.csv'),index=False)
+# master.to_csv(os.path.join('Data','Rainfall','HydroForcing.csv'),index=False)
