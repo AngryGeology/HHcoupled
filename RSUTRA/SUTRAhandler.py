@@ -764,7 +764,7 @@ class material:
         
         # petro physical translation 
         self.petro_func = None 
-        self.shallow_threshold = 1.5 
+        self.shallow_threshold = 1.0
         
         # zone properties 
         self.zone = 0 # this will get reassigned when interfacing SUTRA handler 
@@ -1248,7 +1248,31 @@ class handler:
                          'solver':solver.upper()}
         
     # WRITE functions
-    def writeInp(self,dirname=None,variable_pressure=False):
+    def writeInp(self,dirname=None,variable_pressure=False,maximise_io=False):
+        """
+        Write inp file for sutra run. 
+
+        Parameters
+        ----------
+        dirname : TYPE, optional
+            DESCRIPTION. The default is None.
+        variable_pressure : TYPE, optional
+            DESCRIPTION. The default is False.
+        maximise_io : TYPE, optional
+            Maximise input / output writing by restricting SUTRA to just outputting
+            the important parameters. ie. pressure and saturation at each 
+            timestep (and thats it)
+
+        Raises
+        ------
+        Exception
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         if self.setupinp is None:
             raise Exception('Initial setup has not been done yet!')
             
@@ -1375,11 +1399,18 @@ class handler:
     
         # Start_inpe  - output options
         fh.write('# Data Set 8\n')
-        # NPRINT CNODAL CELMNT CINCID CPANDS CVEL CCORT CBUDG CSCRN CPAUSE
-        fh.write("%i 'N' 'Y' 'N' 'Y' 'N' 'N' 'Y' 'Y' 'Y' 'Data Set 8A'\n"%self.iobs)
-        # NCOLPR NCOL ..
-        fh.write("%i 'N' 'X' 'Y' 'U' 'S' 'P' '-' 'Data Set 8B'\n"%self.iobs)
-        fh.write("%i 'E' 'VX' 'VY' '-' 'Data Set 8C'\n"%self.iobs)  # LCOLPR LCOL ..
+
+        if maximise_io:
+            # NPRINT CNODAL CELMNT CINCID CPANDS CVEL CCORT CBUDG CSCRN CPAUSE
+            fh.write("%i 'N' 'N' 'N' 'N' 'N' 'N' 'Y' 'N' 'N' 'Data Set 8A'\n"%self.iobs)
+            fh.write("%i 'X' 'Y' 'S' 'P' '-' 'Data Set 8B'\n"%self.iobs)
+            fh.write("%i '-' 'Data Set 8C'\n"%self.iobs) 
+        else:
+            # NPRINT CNODAL CELMNT CINCID CPANDS CVEL CCORT CBUDG CSCRN CPAUSE
+            fh.write("%i 'N' 'Y' 'N' 'Y' 'N' 'N' 'Y' 'Y' 'N' 'Data Set 8A'\n"%self.iobs)
+            # NCOLPR NCOL ..
+            fh.write("%i 'N' 'X' 'Y' 'U' 'S' 'P' '-' 'Data Set 8B'\n"%self.iobs)
+            fh.write("%i 'E' 'VX' 'VY' '-' 'Data Set 8C'\n"%self.iobs)  # LCOLPR LCOL ..
     
         # Start_inp8D
         # OMIT when there are no observation points
@@ -1730,7 +1761,7 @@ class handler:
         exts = ['INP', 'BCS', 'ICS', 'LST', 'RST',
                 'NOD', 'ELE', 'OBS', 'BCOP', 'BCOPG', 'SMY'] # FILE EXTENSIONS 
         iunits = [50,    52,  55,     60,     66,
-                  70,     75,     80,    92,       94,   98]# FILE READ UNITS (MAX SHOULD BE 98)
+                  70,     76,     80,    92,       94,   98]# FILE READ UNITS (MAX SHOULD BE 98)
     
         fh = open(os.path.join(self.dname, 'SUTRA.FIL'), 'w')
         for i in range(len(exts)):
@@ -1801,7 +1832,7 @@ class handler:
         if ERROR_FLAG:
             raise Exception('Looks like SUTRA run has failed, check inputs!')
             
-    def showSetup(self,save=False):
+    def showSetup(self,save=False,custom_flags=None, return_fig=False):
         """
         Show the model setup. 
 
@@ -1830,29 +1861,43 @@ class handler:
         fig.set_size_inches(12.0 , 8)
 
         # get node positions 
-        self.mesh.show(ax=ax, attr='zone',electrodes=False,
-                       xlim=[min(self.mesh.node[:,0]),max(self.mesh.node[:,0])])
+        self.mesh.show(ax=ax, attr='zone',color_map='Greys',electrodes=False,
+                       xlim=[min(self.mesh.node[:,0]),max(self.mesh.node[:,0])],
+                       vmin=0,vmax=4)
         
         nx = self.mesh.node[:,0]
         nz = self.mesh.node[:,2]
         
-        if NUBC > 0:    
-            ax.scatter(nx[temp_node-1],nz[temp_node-1],c='r',label='temp node')
+        if custom_flags is None: 
+            if NUBC > 0:    
+                ax.scatter(nx[temp_node-1],nz[temp_node-1],c='r',label='temp node')
+                
+            if NPBC > 0:
+                ax.scatter(nx[pressure_node-1],nz[pressure_node-1],c='m',label='pressure node')
             
-        if NPBC > 0:
-            ax.scatter(nx[pressure_node-1],nz[pressure_node-1],c='m',label='pressure node')
-        
-        if NSOP > 0:
-            ax.scatter(nx[source_node-1],nz[source_node-1],c='b',label='source node')
-            
-        if NPBG > 0:
-            ax.scatter(nx[general_node-1],nz[general_node-1],c='k',label='general node')
+            if NSOP > 0:
+                ax.scatter(nx[source_node-1],nz[source_node-1],c='b',label='source node')
+                
+            if NPBG > 0:
+                ax.scatter(nx[general_node-1],nz[general_node-1],c='k',label='general node')
+        elif not isinstance(custom_flags, list):
+            raise TypeError('Custom flags should be a list of dictionary')
+        else:
+            for custom in custom_flags: 
+                idx = custom['idx']
+                label = custom['label']
+                color = custom['color']
+                ax.scatter(nx[idx],nz[idx],c=color,label=label)
         
         ax.legend() 
+        tdx = max(nx) - min(nx)
+        ax.set_xlim([min(nx) - 0.05*tdx, max(nx) + 0.05*tdx])
         
         if save: 
             fig.savefig(os.path.join(self.dname,'setup.png'))
-            plt.close(fig)
+            # plt.close(fig)
+        if return_fig: 
+            return fig 
             
     #get result functions 
     def getNod(self):
@@ -1880,9 +1925,19 @@ class handler:
         df = pd.DataFrame(parse)
         self.massBalance = df 
         
+    def getElem(self):
+        files = os.listdir(self.dname)
+        fname = '.ele'
+        for f in files:
+            if f.endswith('.ele'):
+                fname = os.path.join(self.dname,f) # then we have found the .nod file 
+                break 
+        return 
+        
     # get results 
     def getResults(self):
         self.getNod()
+        # self.getElem()
         self.getMsBnc()
     
     # plotting functions 
@@ -1973,6 +2028,33 @@ class handler:
         
         if self.closeFigs:
             plt.close(fig)
+            
+    def saveMesh(self,n=0):
+        step=self.nodResult['step%i'%n]
+        potential_arrays = ['Saturation','Pressure','Resistivity']
+        for name in potential_arrays:
+            if name in step.keys():
+                node_arr = np.array(step[name])
+                _ = self.mesh.node2ElemAttr(node_arr,name)
+                
+        dirname = os.path.join(self.dname,self.attribute)
+        if not os.path.exists(dirname):
+            os.mkdir(dirname)
+            
+        self.mesh.vtk(os.path.join(dirname,'ts{:0>3d}.vtk'.format(n)))
+        
+    def saveMeshes(self,survey_keys=None):
+        n = self.resultNsteps
+        desc = 'Saving meshes steps'
+        warnings.filterwarnings("ignore")
+        if survey_keys is None: 
+            steps = np.arange(n)
+        else:
+            steps = survey_keys 
+        for i in tqdm(range(n),ncols=100, desc=desc):
+            if i not in steps:
+                continue 
+            self.saveMesh(i)
     
     def plotMeshResults(self,time_units='day',cmap='Spectral',iobs=10):
         n = self.resultNsteps
@@ -2077,7 +2159,9 @@ class handler:
         for m in self.materials:
             if m.petro_func is None:
                 raise Exception('Material %s has no petrophysical transfer functions associated with it!')
-            
+        if 'depths' not in self.mesh.ptdf.keys():
+            _ = self.mesh.computeElmDepth()    
+        depths_node  = self.mesh.ptdf['depths'].values 
         res0 = np.zeros(self.mesh.numnp) 
         res_elem = np.zeros((self.mesh.numel,self.resultNsteps)) # array to hold resistivity values 
         zones = self.mesh.ptdf['zone'].values 
@@ -2089,13 +2173,13 @@ class handler:
             for zone in range(self.nzones):
                 zidx = zones == (zone+1) 
                 m = self.materials[zone]
-                res0[zidx] = m.petro(sat[zidx])
+                res0[zidx] = m.petro(sat[zidx], depths_node[zidx])
             
             # add moisture values to data 
             self.nodResult['step%i'%i]['Resistivity'] = res0.tolist() 
         
-            # and map to elements 
-            res_elem[:,i] = self.mesh.node2ElemAttr(res0,'res%i'%i)
+            # and map to elements ??
+            # res_elem[:,i] = self.mesh.node2ElemAttr(res0,'res%i'%i)
         
         return res_elem  
     
@@ -2130,7 +2214,7 @@ class handler:
             self.nodResult['step%i'%i]['Resistivity'] = res1.tolist() 
         
             # and map to elements 
-            res_elem[:,i] = self.mesh.node2ElemAttr(res0,'res%i'%i)
+            # res_elem[:,i] = self.mesh.node2ElemAttr(res0,'res%i'%i)
         
         return res_elem  
         
@@ -2519,7 +2603,8 @@ class handler:
         execpath = os.path.join(self.project.apiPath,'exe','R2.exe')
         nrun = len(run_keys)
         if self.ncpu == 0 or self.ncpu == 1: # run single threaded with a basic for loop 
-            [runR2runs(self.pdirs[run_keys[i]],execpath) for i in tqdm(range(nrun),ncols=100)] 
+            for i in range(nrun): 
+                runR2runs(self.pdirs[run_keys[i]],execpath) 
         else: # run in parallel 
             Parallel(n_jobs=self.ncpu)(delayed(runR2runs)(self.pdirs[run_keys[i]],execpath) for i in tqdm(range(nrun),ncols=100,desc='Running R2'))
         

@@ -43,9 +43,9 @@ master['sat'] = sat
 fig, ax = plt.subplots()
 
 uni_names = np.unique(master["Sample"].values)
-unwanted = ['HH01- 4.5V', 'HH01-1.5H',
+unwanted = ['HH01- 4.5V', #'HH01-1.5H',
             "HH02 - 3.1V", "HH02 - 6.2V"]
-unwanted = [] 
+# unwanted = [] 
 
 cols = [(0.7, 0.7, 0.5),
         (0.2, 0.2, 0.2),
@@ -114,7 +114,7 @@ tofit01 = ["HH02 - 0.95H", "HH02 - 1.05V"]
 # tofit02 = ["HH02 - 3.1V", "HH02 - 6.2V"]
 tofit02 = ["HH02 - 3H", "HH02 - 6.1H"]
 
-tofit03 = ['HH01-1.5V']
+tofit03 = ['HH01-1.5V','HH01-1.5H']
 
 fit_names = ["Shallow WMF fit", "WMF fit", "SSF fit"]
 fit_columns = [tofit01, tofit02, tofit03]
@@ -254,6 +254,7 @@ for i, name in enumerate(fit_names):
 ax.legend(lns, labels)
 ax.grid(True, 'major', linestyle='--',
         color=(0.5, 0.5, 0.7, 0.3))  # major grid
-ax.grid(True, 'minor', linestyle=':', color=(0.5, 0.5, 0.7, 0.3))
+ax.grid(True, 'minor', linestyle=':', 
+        color=(0.5, 0.5, 0.7, 0.3))
 
-# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure
+fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure

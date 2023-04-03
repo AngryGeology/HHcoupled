@@ -7,7 +7,7 @@ Merge MCMC logs
 import os 
 import pandas as pd 
 
-dirname = 'Models/HydroMCMC'
+dirname = 'Models/HydroMCMCmulti'
 # dirname = 'SyntheticStudy/Models/MCMC'
 
 entries = os.listdir(dirname)
@@ -21,6 +21,8 @@ for e in entries:
 master_df = pd.DataFrame()
 for i,dname in enumerate(chain_dirs): 
     fpath = os.path.join(dname,'chainlog.csv')
+    if not os.path.exists(fpath):
+        continue 
     df = pd.read_csv(fpath)
     df['chain'] = chain_ids[i]
     master_df = pd.concat([master_df,df])

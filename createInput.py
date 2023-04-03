@@ -237,7 +237,7 @@ def str2dat(fname):
     dt = datetime.strptime(string, "%Y-%m-%d")
     return dt 
 
-def HH_data(ncpu=1):
+def HH_data(ncpu=1,show=False):
     """
     Read in hollin hill hydro and transfer resistance data 
 
@@ -273,6 +273,7 @@ def HH_data(ncpu=1):
     # find times when resistivity and rainfall data are there
     nobs = len(hydro_data)
     rdates = [str2dat(hydro_data['DATE_TIME'][i]) for i in range(nobs)]
+    hdiy = [0]*nobs 
     sflag = [False]*nobs # flag to determine if there is a resistivity survey 
     suidx = [-1]*nobs # corresponding survey index 
     for i in range(nobs):
@@ -281,8 +282,13 @@ def HH_data(ncpu=1):
         if min(delta) == 0:
             idx = np.argmin(delta)
             suidx[i] = idx 
-            sflag[i] = True 
+            sflag[i+1] = True # need to add one here as the first time step in sutra is time 0 
+        year = date.year 
+        ref_dt = datetime(year-1,12,31)
+        hdiy[i] = (date - ref_dt).days
+        
     hydro_data['datetime'] = rdates 
+    hydro_data['diy'] = hdiy 
     
     # sflag = [False] + sflag # add one here because first returned survey is time 0 ??
     survey_keys = np.arange(nobs)[np.array(sflag)==True]
@@ -293,9 +299,12 @@ def HH_data(ncpu=1):
     def loop(i):
         f = rfiles[i]
         s = Survey(os.path.join('Data/resData',f),ftype='ProtocolDC',debug=False) # parse survey 
+        s.filterRecip(5,False)
         fig = s.fitErrorPwl() # fit reciprocal error levels 
         # extract the abmn, data, error information and date 
         df = s.df[['a','b','m','n','recipMean','resError']]
+        ie = s.df['irecip'].values >= 0 # reciprocal + non-paired
+        df = s.df[ie]
         df = df.rename(columns={'recipMean':'tr',
                                 'resError':'error'})
         df['sidx'] = i 
@@ -314,7 +323,24 @@ def HH_data(ncpu=1):
     for i in range(len(rfiles)):
         data_seq = pd.concat([data_seq,pout[i][0]])
         sequences.append(pout[i][1])
-
+        
+    if show: 
+        fig, ax = plt.subplots(nrows=3) 
+        miny = -max(hydro_data['PE'].values)
+        maxy = max(hydro_data['PRECIP'].values) 
+        for i in range(3):
+            ax[i].bar(rdates,hydro_data['PRECIP'].values,color='b')
+            ax[i].bar(rdates,-hydro_data['PE'].values,color='r')
+            for j in range(len(sdates)):
+                ax[i].plot([sdates[j],sdates[j]],[miny,maxy],c=(0.5,0.5,0.5,0.5))
+            ax[i].set_ylabel('Rainfall / p.Et (mm/day)')
+            limits = [datetime(2014+i,1,1),datetime(2014+i,12,31)]
+            ax[i].set_xlim(limits)
+            ax[i].set_ylim([miny,maxy])            
+        ax[-1].set_xlabel('Datetime')
+        
+        return fig 
+                
     return hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy
 
 def HH_getElec():
@@ -336,7 +362,7 @@ def Sy_mesh(show=False):
     p = np.polyfit(tx,topo['z'].values,1) # fit elevation to along ground distance data 
     tz = np.polyval(p,tx) # fit the modelled topography 
     
-    moutput = mt.quadMesh(tx[0::2], tz[0::2], elemx=1, pad=5, fmd=10,
+    moutput = mt.quadMesh(tx[0::2], tz[0::2], elemx=1, pad=5, fmd=15,
                           zf=1.1,zgf=1.1)
     mesh = moutput[0]  # ignore the other output from meshTools here
     numel = mesh.numel  # number of elements
@@ -436,7 +462,109 @@ def Sy_mesh(show=False):
     
     return mesh, zone_flags, dx, pressures, boundaries 
 
+def Sy_data(ncpu=1,show=False):
+    """
+    Read in hollin hill hydro and transfer resistance data 
 
+    Parameters
+    ----------
+    tr : bool, optional
+        DESCRIPTION. The default is True.
+    ncpu : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
+    
+    hydro_data = pd.read_csv('Data/Rainfall/HydroForcing.csv')
+    datadir = 'SyntheticStudy/DataErr'
+    rfiles = [] # resistivity files 
+    sdates = [] # survey dates 
+    sdiy = [] 
+    for f in sorted(os.listdir(datadir)):
+        if f.endswith('.dat'):
+            rfiles.append(f)
+            dt = str2dat(f)
+            sdates.append(str2dat(f))
+            # compute day in year 
+            year = dt.year 
+            ref_dt = datetime(year-1,12,31)
+            sdiy.append((dt - ref_dt).days)  
+            
+    # find times when resistivity and rainfall data are there
+    nobs = len(hydro_data)
+    rdates = [str2dat(hydro_data['DATE_TIME'][i]) for i in range(nobs)]
+    hdiy = [0]*nobs 
+    sflag = [False]*nobs # flag to determine if there is a resistivity survey 
+    suidx = [-1]*nobs # corresponding survey index 
+    for i in range(nobs):
+        date = rdates[i]
+        delta = [abs((date - sdate).days) for sdate in sdates]
+        if min(delta) == 0:
+            idx = np.argmin(delta)
+            suidx[i] = idx 
+            sflag[i+1] = True # need to add one here as the first time step in sutra is time 0 
+        year = date.year 
+        ref_dt = datetime(year-1,12,31)
+        hdiy[i] = (date - ref_dt).days
+        
+    hydro_data['datetime'] = rdates 
+    hydro_data['diy'] = hdiy 
+    
+    # sflag = [False] + sflag # add one here because first returned survey is time 0 ??
+    survey_keys = np.arange(nobs)[np.array(sflag)==True]
+        
+    ## create a sequence of data and estimated errors 
+    data_seq = pd.DataFrame()
+    
+    sequences = [] 
+    def loop(i):
+        f = rfiles[i]
+        s = Survey(os.path.join(datadir,f),ftype='ProtocolDC',debug=False) # parse survey 
+        # extract the abmn, data, error information and date 
+        df = s.df[['a','b','m','n','resist']]
+        ie = s.df['irecip'].values >= 0 # reciprocal + non-paired
+        df = s.df[ie]
+        df = df.rename(columns={'resist':'tr'})
+        df['sidx'] = i 
+        df['error'] = np.abs(df['tr'])*0.05
+        sequence = df[['a','b','m','n']].values
+        return df, sequence 
+    
+    if ncpu <= 1: 
+        pout = [loop(i) for i in range(len(rfiles))]
+    else: 
+        nruns = len(rfiles)
+        pout=Parallel(n_jobs=ncpu)(delayed(loop)(i) for i in range(nruns))
+    
+    for i in range(len(rfiles)):
+        data_seq = pd.concat([data_seq,pout[i][0]])
+        sequences.append(pout[i][1])
+        
+    if show: 
+        fig, ax = plt.subplots(nrows=3) 
+        miny = -max(hydro_data['PE'].values)
+        maxy = max(hydro_data['PRECIP'].values) 
+        for i in range(3):
+            ax[i].bar(rdates,hydro_data['PRECIP'].values,color='b')
+            ax[i].bar(rdates,-hydro_data['PE'].values,color='r')
+            for j in range(len(sdates)):
+                ax[i].plot([sdates[j],sdates[j]],[miny,maxy],c=(0.5,0.5,0.5,0.5))
+            ax[i].set_ylabel('Rainfall / p.Et (mm/day)')
+            limits = [datetime(2014+i,1,1),datetime(2014+i,12,31)]
+            ax[i].set_xlim(limits)
+            ax[i].set_ylim([miny,maxy])            
+        ax[-1].set_xlabel('Datetime')
+        
+        return fig 
+                
+    return hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy
+
+#%% prep rainfall 
 def prepRainfall(tdx,precip,pet,kc,numnp,ntimes, show=False):
     
     # deal with et 

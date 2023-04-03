@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Mar 24 13:10:02 2023
-
+run mcmc on multiple cores 
 @author: jimmy
 """
 import os, sys, shutil, time 
@@ -10,6 +10,7 @@ from datetime import timedelta
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
+from joblib import Parallel, delayed
 # add custom modules 
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
@@ -33,18 +34,18 @@ exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
     
-chainno = int(input("Enter Chain number: "))
+nchain = 12
+ncpu = 16
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroMCMC')
-chain_dir = os.path.join(sim_dir,'chain%i'%chainno)
-for d in [model_dir,sim_dir,chain_dir]:
+sim_dir = os.path.join(model_dir,'HydroMCMCmulti')
+for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
 #%% load in the data 
 elec = ci.HH_getElec()
-hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.HH_data(12)
+hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.HH_data(ncpu)
 TimeStamp = np.arange(len(hydro_data))
 times = np.asarray(TimeStamp, dtype=int)
 
@@ -87,7 +88,7 @@ precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s
 pet=hydro_data['PE'].values/secinday 
 kc=hydro_data['Kc'].values 
 tdx = sum(dx)/2
-fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc, len(source_node),ntimes)
+fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc, len(source_node), ntimes)
 
 #%% create materials 
 SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
@@ -102,9 +103,9 @@ WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
 RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.01, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.01, 2.0] 
-vn_SSF = [1.1, 0.05, 2.5]
+alpha_SSF = [0.001, 0.05, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.05, 2.0] 
+vn_SSF = [0.9, 0.05, 2.5]
 vn_WMF = [1.1, 0.05, 2.5]
 K_SSF = [0.14,0.1,0.64]
 
@@ -114,56 +115,57 @@ wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
 SSF.setMCparam(ssf_param)
 WMF.setMCparam(wmf_param)
 
-#%% create handler 
-h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
-            flow = 'transient',
-            transport = 'transient',
-            sim_type='solute')
-h.maxIter = 300
-h.rpmax = 5e5  
-h.drainage = 1e-8
-h.clearDir()
-h.setMesh(mesh)
-h.setEXEC(exec_loc)
-h.cpu = 1 # number of processors to use 
-
-h.addMaterial(SSF,zone_flags['SSF'])
-h.addMaterial(WMF,zone_flags['WMF'])
-h.addMaterial(RMF,zone_flags['RMF'])
-
-h.setupInp(times=times, 
-           source_node=source_node, 
-           general_node=general_node, general_type=general_type, 
-           source_val=0,
-           solver='direct')
-
-h.pressure = general_pressure
-h.writeInp(maximise_io=True) # write input without water table at base of column
-h.writeBcs(times, source_node, fluidinp, tempinp)
-h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS 
-h.writeVg()
-h.writeFil(ignore=['BCOP', 'BCOPG'])
-
-h.showSetup(True) 
-
-#%% setup R2 project for res modelling 
-k = Project(dirname=sim_dir)
-k.setElec(elec)
-k.createMesh(cl_factor=4)
-
-h.setRproject(k)
-h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences,
-              tfunc=temp_uncorrect,diy=sdiy)
+#%% create handler for each mcmc chain 
+def run(i):
+    chain_dir = os.path.join(sim_dir,'chain%i'%(i+1))
+    h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
+                flow = 'transient',
+                transport = 'transient',
+                sim_type='solute')
+    h.maxIter = 300
+    h.rpmax = 5e5  
+    h.clearDir()
+    h.clearMultiRun()
+    h.setMesh(mesh)
+    h.setEXEC(exec_loc)
+    h.cpu = 1 # number of processors to use 
     
-depths, node_depths = h.getDepths()
+    h.addMaterial(SSF,zone_flags['SSF'])
+    h.addMaterial(WMF,zone_flags['WMF'])
+    h.addMaterial(RMF,zone_flags['RMF'])
+    
+    h.setupInp(times=times, 
+               source_node=source_node, 
+               general_node=general_node, general_type=general_type, 
+               source_val=0,
+               solver='direct')
+    
+    h.pressure = general_pressure
+    h.writeInp(maximise_io=True) # write input without water table at base of column
+    h.writeBcs(times, source_node, fluidinp, tempinp)
+    h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS 
+    h.writeVg()
+    h.writeFil(ignore=['BCOP', 'BCOPG'])
+    
+    # setup R2 project for res modelling 
+    k = Project(dirname=chain_dir)
+    k.setElec(elec)
+    k.createMesh(cl_factor=4)
+    
+    h.setRproject(k)
+    h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences,
+                  tfunc=temp_uncorrect,diy=sdiy)
+    
+    depths, node_depths = h.getDepths()
+    
+    # run single mcmc single chain 
+    nstep = 500
+    chainlog, ar = h.mcmc(nstep,0.234)
+    df = pd.DataFrame(chainlog)
+    df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
+    
 
-setup_time = time.time() - c0 
-c0 = time.time() 
+print('Running...')
+Parallel(n_jobs=ncpu)(delayed(run)(i) for i in range(nchain))
+print('Done')
 
-#%% run single mcmc single chain 
-nstep = 1000
-print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
-chainlog, ar = h.mcmc(nstep,0.234)
-df = pd.DataFrame(chainlog)
-df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
-print('Done.')

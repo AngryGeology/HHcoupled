@@ -101,6 +101,8 @@ effrain[nanidx] = np.interp(peids[nanidx],peids[numidx],effrain[numidx])
 fig, ax = plt.subplots()
 ax.bar(pedates,prmatched,color='b')
 ax.bar(pedates,-pe,color='r')
+ax.set_ylabel('Rainfall/PET (mm/day)')
+ax.set_xlabel('Datetime')
 
 #%% scan 7 day intervals to get Kc 
 lookup={'low':0.8,'mod':0.6,'hi':0.4,'v.hi':0.3}

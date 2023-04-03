@@ -36,7 +36,7 @@ for f in os.listdir(datadir):
         continue 
     _, df = protocolParser(os.path.join(datadir,f))
     tr = df['resist'].values 
-    err = np.abs(tr)*0.02*np.random.randn(len(df))
+    err = np.abs(tr)*0.05*np.random.randn(len(df))
     tre = tr + err 
     df.loc[:,'resist'] = tre 
     to2protocol(os.path.join(datadirwerr,f), df)

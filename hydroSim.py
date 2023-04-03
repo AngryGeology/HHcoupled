@@ -31,7 +31,7 @@ plt.close('all')
 
 c0 = time.time() 
 # create working environment 
-exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
+exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra_s'
 if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
 
@@ -42,7 +42,7 @@ for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = True 
+model_res = False 
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -71,16 +71,25 @@ general_pressure  = []
 general_node += boundaries['left'].tolist()
 general_type += ['seep']*len(boundaries['left'])
 general_pressure += [0.0]*len(boundaries['left'])
+left_side = {'idx':boundaries['left'],
+             'color':'m',
+             'label':'Seepage node'}
 
 # set top side as seepage boundary 
 general_node += boundaries['top'].tolist()
 general_type += ['seep']*len(boundaries['top'])
 general_pressure += [0.0]*len(boundaries['top'])
+top_side = {'idx':boundaries['top'],
+            'color':'b',
+            'label':'Seepage and source node'}
 
 # set basal nodes as pressure boundary 
 general_node += boundaries['bottom'].tolist()
 general_type += ['pres']*len(boundaries['bottom'])
 general_pressure += pressures['base'].tolist()
+bot_side = {'idx':boundaries['bottom'],
+            'color':'k',
+            'label':'Min.Pressure Node'}
 
 # set right nodes to hold pressure
 # right_pressure = pressures['nodal'][boundaries['right']]
@@ -99,6 +108,9 @@ nodal_temp = [0]*mesh.numnp
 general_node = np.array(general_node) + 1
 general_pressure = np.array(general_pressure) 
 
+## create some flags for passing to show setup command 
+node_flags = [left_side,top_side,bot_side]
+
 #%% setup infiltration for SUTRA 
 ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
@@ -109,15 +121,15 @@ fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc,len(source_node),ntimes)
 #rainfall is scaled by the number of elements 
 
 #%% create materials 
-# SSF properties from grid search 
+# SSF properties from mcmc search 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=1.11,vn=1.57,name='STAITHES')
+                alpha=0.41,vn=1.17,name='STAITHES')
 # SSF properties from curve fitting 
 # SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-#                 alpha=0.9,vn=1.5,name='STAITHES')
-# WMF properties from grid search 
+#                 alpha=0.9,vn=1.1,name='STAITHES')
+# WMF properties from mcmc search 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-                alpha=0.67,vn=2.0,name='WHITBY')
+                alpha=0.097,vn=1.61,name='WHITBY')
 # wmf properties from curve fitting 
 # WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
 #                 alpha=0.08,vn=1.25,name='WHITBY')
@@ -157,7 +169,7 @@ h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS
 h.writeVg()
 h.writeFil(ignore=['BCOP', 'BCOPG'])
 
-h.showSetup(save=True) 
+setupfig = h.showSetup(custom_flags=node_flags, return_fig=True) 
 
 setup_time = time.time() - c0 
 c0 = time.time() 
@@ -194,8 +206,11 @@ h.attribute = 'Saturation'
 h.vmax = 1.01
 h.vmin = 0.2
 h.vlim = [0.0, 1.01]
-h.plot1Dresults(iobs=10)
-h.plotMeshResults(cmap='RdBu',iobs=10)
+# h.plot1Dresults(iobs=10)
+# h.plotMeshResults(cmap='RdBu',iobs=10)
+_=h.callPetro()
+_=h.callTempCorrect(temp_uncorrect, np.append([0],hydro_data['diy'].values))
+h.saveMeshes(survey_keys)
 
 sw_ssf = h.get1Dvalues(58.8, 74.8)[1:]
 sw_wmf = h.get1Dvalues(129, 90)[1:]
@@ -218,8 +233,8 @@ fig.savefig(os.path.join(h.dname,'Sw_track.png'))
 
 massdf = h.massBalance
 fig,axs = plt.subplots(nrows=2)
-massin = (hydro_data['PRECIP'].values/ci.secinday)*tdx
-massot = (hydro_data['PE'].values/ci.secinday)*tdx
+massin = precip*tdx
+massot = pet*tdx*kc 
 massdf_day = [hydro_data['datetime'][i] + timedelta(days=1) for i in range(len(hydro_data))]
 axs[0].bar(hydro_data['datetime'],massin,color='b')
 axs[0].bar(hydro_data['datetime'],-massot,color='r')
@@ -256,7 +271,7 @@ if model_res:
     WMF.setPetro(wmf_petro_sat)
     
     h.setupMultiRun() 
-    h.cpu = 12 # run multi threaded for resistivity part 
+    h.cpu = 1 # run multi threaded for resistivity part 
     h.runMultiRun()
     run_keys = h.getMultiRun()
     
