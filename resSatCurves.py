@@ -43,9 +43,9 @@ master['sat'] = sat
 fig, ax = plt.subplots()
 
 uni_names = np.unique(master["Sample"].values)
-unwanted = ['HH01- 4.5V', #'HH01-1.5H',
-            "HH02 - 3.1V", "HH02 - 6.2V"]
-# unwanted = [] 
+# unwanted = ['HH01- 4.5V', #'HH01-1.5H',
+#             "HH02 - 3.1V", "HH02 - 6.2V"]
+unwanted = ['HH01- 4.5V'] 
 
 cols = [(0.7, 0.7, 0.5),
         (0.2, 0.2, 0.2),
@@ -112,7 +112,7 @@ Rt = master["TC Resistivity (Ohm.m)"].values
 
 tofit01 = ["HH02 - 0.95H", "HH02 - 1.05V"]
 # tofit02 = ["HH02 - 3.1V", "HH02 - 6.2V"]
-tofit02 = ["HH02 - 3H", "HH02 - 6.1H"]
+tofit02 = ["HH02 - 3H", "HH02 - 6.1H"]#"HH02 - 3.1V", "HH02 - 6.2V"]
 
 tofit03 = ['HH01-1.5V','HH01-1.5H']
 
