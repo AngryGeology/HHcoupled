@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
 linux_r_path = '/home/jimmy/phd/resipy/src'
-win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+# win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+win_r_path = r'C:\Users\jimmy\Documents\2PhDProjects\Software\resipy\src'
 if sys.platform == 'linux' and linux_r_path not in sys.path: 
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
@@ -33,7 +34,8 @@ c0 = time.time()
 # create working environment 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra_s'
 if 'win' in sys.platform.lower():
-    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    # exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    exec_loc = r"C:\Users\jimmy\Documents\2PhDProjects\Software\SUTRA\bin\sutra.exe"
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'HydroSim')
@@ -42,7 +44,7 @@ for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = False 
+model_res = False   
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -116,8 +118,8 @@ ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
 pet=hydro_data['PE'].values/secinday 
 kc=hydro_data['Kc'].values 
-tdx = sum(dx)/2
-fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc,len(source_node),ntimes)
+tdx = sum(dx)#/2
+fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #rainfall is scaled by the number of elements 
 
 #%% create materials 
@@ -206,11 +208,11 @@ h.attribute = 'Saturation'
 h.vmax = 1.01
 h.vmin = 0.2
 h.vlim = [0.0, 1.01]
-# h.plot1Dresults(iobs=10)
-# h.plotMeshResults(cmap='RdBu',iobs=10)
+h.plot1Dresults(iobs=10)
+h.plotMeshResults(cmap='RdBu',iobs=10)
 _=h.callPetro()
 _=h.callTempCorrect(temp_uncorrect, np.append([0],hydro_data['diy'].values))
-h.saveMeshes(survey_keys)
+# h.saveMeshes(survey_keys)
 
 sw_ssf = h.get1Dvalues(58.8, 74.8)[1:]
 sw_wmf = h.get1Dvalues(129, 90)[1:]

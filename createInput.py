@@ -179,8 +179,11 @@ def HH_mesh(show=False):
     # find mid points for computing cross sectional area for infiltration 
     dx = np.zeros(len(surf_x))
     dx[0] = np.abs(surf_x[1] - surf_x[0])
-    for i in range(1,len(surf_x)):
-        dx[i] = np.abs(surf_x[i] - surf_x[i-1])
+    dx[-1] = np.abs(surf_x[-1] - surf_x[-2])
+    for i in range(1,len(surf_x)-1):
+        dx0 = np.abs(surf_x[i] - surf_x[i-1])
+        dx1 = np.abs(surf_x[i] - surf_x[i+1])
+        dx[i] = (dx0+dx1)/2 
     
     if show: 
         fig, ax = plt.subplots()
@@ -565,20 +568,24 @@ def Sy_data(ncpu=1,show=False):
     return hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy
 
 #%% prep rainfall 
-def prepRainfall(tdx,precip,pet,kc,numnp,ntimes, show=False):
+def prepRainfall(dx,precip,pet,kc,numnp,ntimes, show=False):
     
     # deal with et 
     et = pet*kc
     effrain = precip - et 
+    tdx = sum(dx)
     infil = effrain*tdx
     
     # now populate matrices
     fluidinp = np.zeros((ntimes, numnp),dtype=float)  # fluid input
     tempinp = np.zeros((ntimes, numnp),dtype=float)  # fluid temperature
     for i in range(numnp):
-        m = 1/(numnp)
+        # infil = effrain*dx[i]
+        # m = 1/2
+        m = dx[i]/tdx
         if i==0 or i==(numnp-1):
-            m = 1/(2*numnp)
+            # m = 1/4
+            m = 0.5*(dx[i]/tdx)
         fluidinp[:, i] = infil*m 
         
     if show:
