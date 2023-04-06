@@ -56,7 +56,7 @@ def HH_mesh(show=False):
     # poly_dogger = np.genfromtxt('interpretation/Dogger_poly.csv',delimiter=',')
     
     moutput = mt.quadMesh(topo['y'].values[0::2], topo['z'].values[0::2],
-                          elemx=1, pad=5, fmd=15,zf=1.1,zgf=1.1)
+                          elemx=1, pad=4, fmd=15,zf=1.1,zgf=1.1)
     
     mesh = moutput[0]  # ignore the other output from meshTools here
     numel = mesh.numel  # number of elements
@@ -580,13 +580,10 @@ def prepRainfall(dx,precip,pet,kc,numnp,ntimes, show=False):
     fluidinp = np.zeros((ntimes, numnp),dtype=float)  # fluid input
     tempinp = np.zeros((ntimes, numnp),dtype=float)  # fluid temperature
     for i in range(numnp):
-        # infil = effrain*dx[i]
-        # m = 1/2
         m = dx[i]/tdx
         if i==0 or i==(numnp-1):
-            # m = 1/4
             m = 0.5*(dx[i]/tdx)
-        fluidinp[:, i] = infil*m 
+        fluidinp[:, i] = infil*m
         
     if show:
         fig, ax = plt.subplots()

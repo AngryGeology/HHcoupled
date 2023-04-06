@@ -85,8 +85,8 @@ ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
 pet=hydro_data['PE'].values/secinday 
 kc=hydro_data['Kc'].values 
-tdx = sum(dx)/2
-fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc, len(source_node),ntimes)
+tdx = sum(dx)
+fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc, len(source_node),ntimes)
 #rainfall is scaled by the number of elements 
 
 #%% create materials 

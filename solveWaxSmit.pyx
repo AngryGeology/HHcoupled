@@ -133,6 +133,25 @@ cdef float porFunc(double [:] p, double x):
     denom = 1 + ((x*alpha)/(es-x))**-n 
     e = er + numon/(denom**m)  
     return e 
+
+def solveTheta(double [:] p, double x):
+    """
+    Porosity function for external use in python 
+    """
+    cdef int i 
+    cdef float e, er, es, alpha, n, m 
+
+    if len(p) != 4: # fall back out if not expected 
+        return -1.0 
+    er = p[0]
+    es = p[1]
+    alpha = p[2]
+    n = p[3]
+    m = 1 - (1/n)
+    numon = es - er 
+    denom = 1 + ((x*alpha)/(es-x))**-n 
+    e = er + numon/(denom**m)  
+    return e 
     
 def solveGmcWVP(double[:] Rt, double Rw, double Pg, double Pw,
              double[:] theta_param, double cec, double FF, double n):
@@ -352,6 +371,48 @@ def solveRtWVP(double[:] gmc, double Rw, double Pg, double Pw,
         # lookup a value of porosity to match the gmc value 
         theta = porFunc(theta_param, gmc[i])
         Rt[i] = rtFunc(gmc[i], Rw, Pg, Pw, theta, cec, FF, n)
+        
+    return Rt
+
+def solveRtSt(double[:] sat, double Rw,
+              double cec, double FF, double n):
+    """Convert true rock resistivity into a saturation
+    using waxman-smit model. See Chambers et al, 2014.  
+    model. 
+    
+    Parameters
+    ---------- 
+    sat: Array 
+        Saturation of sample 
+    Rw: double
+        pore fluid resistivity 
+    cec: double
+        cation exchange capacity
+    FF: double 
+        formation factor 
+    n: double
+        Archie's saturation exponent
+        
+    Returns 
+    ---------- 
+    Rt: array double
+        Total rock resistivity 
+    """
+    cdef double phi, B, sigma_w 
+    cdef int i 
+    cdef int nmeas = len(sat) 
+    cdef np.ndarray[double, ndim=1] Rt = np.zeros(nmeas, dtype=float)
+    
+    #compute constants
+    B = 4.6*(1-(0.6*ma.exp(-0.77/Rw)))
+    sigma_w = 1/Rw # conductivity of pore fluid
+    
+    for i in range(nmeas):        
+        # compute Rt, Eq  2 of Chambers et al 2014, work out components of function 
+        S = sat[i]
+        c0 = FF/(S**n)
+        c1 = (B*cec)/S 
+        Rt[i] = c0*((Rw+c1)**-1)
         
     return Rt
 

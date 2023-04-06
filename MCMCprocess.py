@@ -20,9 +20,9 @@ dirname = 'Models/HydroMCMCmulti'
 # dirname = 'SyntheticStudy/Models/MCMC(no_error)/'
 # dists = {0: ['gauss', 'bimodal'],
 #          1: ['bimodal', 'bimodal']}
-dists = {0: ['gauss', 'gauss'],
-         1: ['gauss', 'bimodal']}
-pt_threshold = 0.020
+dists = {0: ['bimodal', 'bimodal'],
+         1: ['bimodal', 'bimodal']}
+pt_threshold = 0.02
 # pt_threshold = 0.45
 
 savfig = True 
@@ -197,14 +197,14 @@ for i in range(nzones):
         distx.plot(axs['hist_x%i' % i], 'r')
     except:
         print('Couldnt find optimal parameters for zone %i alpha'%n)
-        px = np.full(4,np.nan)
+        px = np.full(6,np.nan)
     try:
         py = disty.fit()
         ly = np.linspace(min(y), max(y), 100)    
         disty.plot(axs['hist_y%i' % i], 'r', ydom=True)
     except:
         print('Couldnt find optimal parameters for zone %i N'%n)
-        py = np.full(4,np.nan)
+        py = np.full(6,np.nan)
         
     params[i]['alpha'] = px[0]
     params[i]['alpha_std'] = px[1]

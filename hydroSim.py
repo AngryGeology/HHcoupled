@@ -44,7 +44,7 @@ for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = False   
+model_res = True  
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -62,7 +62,7 @@ cosmos_vwc[nanidx] = np.interp(x[nanidx],
                                cosmos_vwc[np.invert(nanidx)])
 
 #%% create mesh with some pressure conditions 
-mesh, zone_flags, dx, pressures, boundaries = ci.HH_mesh(False)
+mesh, zone_flags, dx, pressures, boundaries = ci.HH_mesh(True)
 
 # create boundary conditions 
 general_node = []
@@ -118,7 +118,7 @@ ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
 pet=hydro_data['PE'].values/secinday 
 kc=hydro_data['Kc'].values 
-tdx = sum(dx)#/2
+tdx = sum(dx)
 fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #rainfall is scaled by the number of elements 
 
@@ -126,6 +126,8 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 # SSF properties from mcmc search 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
                 alpha=0.41,vn=1.17,name='STAITHES')
+SSF = material(Ksat=0.64,theta_res=0.1,theta_sat=0.48,
+                alpha=0.1,vn=1.43,name='WHITBY')
 # SSF properties from curve fitting 
 # SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
 #                 alpha=0.9,vn=1.1,name='STAITHES')
@@ -212,9 +214,9 @@ h.plot1Dresults(iobs=10)
 h.plotMeshResults(cmap='RdBu',iobs=10)
 _=h.callPetro()
 _=h.callTempCorrect(temp_uncorrect, np.append([0],hydro_data['diy'].values))
-# h.saveMeshes(survey_keys)
+h.saveMeshes(survey_keys)
 
-sw_ssf = h.get1Dvalues(58.8, 74.8)[1:]
+sw_ssf = h.get1Dvalues(25.92, 65.77)[1:]
 sw_wmf = h.get1Dvalues(129, 90)[1:]
 axt = ax.twinx()
 axt.plot(hydro_data['datetime'][0:len(sw_ssf)],sw_ssf,c='y',label='ssf')

@@ -87,8 +87,8 @@ ntimes = len(hydro_data)
 precip=hydro_data['PRECIP'].values/secinday # to get in mm/s == kg/s 
 pet=hydro_data['PE'].values/secinday 
 kc=hydro_data['Kc'].values 
-tdx = sum(dx)/2
-fluidinp, tempinp = ci.prepRainfall(tdx,precip,pet,kc, len(source_node), ntimes)
+tdx = sum(dx)
+fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc, len(source_node), ntimes)
 
 #%% create materials 
 SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
@@ -159,7 +159,7 @@ def run(i):
     depths, node_depths = h.getDepths()
     
     # run single mcmc single chain 
-    nstep = 500
+    nstep = 200
     chainlog, ar = h.mcmc(nstep,0.234)
     df = pd.DataFrame(chainlog)
     df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
