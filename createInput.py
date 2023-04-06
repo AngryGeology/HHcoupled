@@ -56,7 +56,7 @@ def HH_mesh(show=False):
     # poly_dogger = np.genfromtxt('interpretation/Dogger_poly.csv',delimiter=',')
     
     moutput = mt.quadMesh(topo['y'].values[0::2], topo['z'].values[0::2],
-                          elemx=1, pad=4, fmd=15,zf=1.1,zgf=1.1)
+                          elemx=1, pad=5, fmd=15,zf=1.1,zgf=1.1)
     
     mesh = moutput[0]  # ignore the other output from meshTools here
     numel = mesh.numel  # number of elements

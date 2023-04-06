@@ -10,12 +10,11 @@ from datetime import datetime
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
-from scipy.interpolate import LinearNDInterpolator
-from tqdm import tqdm 
 sys.path.append('/home/jimmy/phd/resipy/src')
 from resipy.Project import Project 
 from resipy.meshTools import points2vtk
 ncpu = 20
+invert_real = False 
 
 #%% load in electrode and topography data 
 files = sorted(os.listdir('Data/resData'))
@@ -74,19 +73,25 @@ k.showMesh()
 
 #%% inversion settings and preprocessing 
 k.fitErrorPwl()
+errors = []
+for s in k.surveys:
+    errors.append(s.df['resError'])
 plt.close('all')
 k.err = True 
 k.param['reg_mode'] = 2 
 k.param['alpha_s'] = 0 
+k.bigSurvey.fitErrorPwl()
+errorModel = k.bigSurvey.errorModel 
 
 #%% invert 
-k.invert(parallel=True,ncores=ncpu) 
-# k.showResults()
-
-# save result? 
-k.saveVtks('Models/timeLapse2D/result')
-os.rename('Models/timeLapse2D/result/time_step0001.vtk',
-          'Models/timeLapse2D/result/baseline.vtk')
+if invert_real: 
+    k.invert(parallel=True,ncores=ncpu) 
+    # k.showResults()
+    
+    # save result? 
+    k.saveVtks('Models/timeLapse2D/result')
+    os.rename('Models/timeLapse2D/result/time_step0001.vtk',
+              'Models/timeLapse2D/result/baseline.vtk')
 
 #%% invert the synthetic data set 
 simpath = 'Models/HydroSim/SimData'
@@ -133,12 +138,14 @@ k.showMesh()
 
 # inversion settings and preprocessing 
 # k.fitErrorPwl()
-k.err = False 
+for i,s in enumerate(k.surveys): 
+    s.df.loc[:,'resError'] = errors[i]
+k.err = True 
 k.param['reg_mode'] = 2 
 k.param['alpha_s'] = 0 
-k.param['a_wgt'] = 0.001 
-k.param['b_wgt'] = 0.002 
-
+k.param['a_wgt'] = 0
+k.param['b_wgt'] = 0
+k.bigSurvey.errorModel = errorModel 
 # invert 
 k.invert(parallel=True,ncores=ncpu) 
 # save result? 
