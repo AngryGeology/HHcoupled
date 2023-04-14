@@ -2611,7 +2611,7 @@ class handler:
     def runResFwdmdl(self,run_key):
         execpath = os.path.join(self.project.apiPath,'exe','R2.exe')
         pdir = os.path.join(self.dname,self.template.format(run_key))
-        runR2runs(pdir,execpath)
+        runR2runs(pdir,execpath,return_data=False,clean=True)
 
     def getFwdRunResults(self,run_keys):
         nsurveys = len(self.survey_keys)

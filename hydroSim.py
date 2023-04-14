@@ -15,7 +15,7 @@ if 'RSUTRA' not in sys.path:
     sys.path.append('RSUTRA')
 linux_r_path = '/home/jimmy/phd/resipy/src'
 # win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
-win_r_path = r'C:\Users\jimmy\Documents\2PhDProjects\Software\resipy\src'
+win_r_path = r'C:\Users\jimmy\Documents\resipy\src'
 if sys.platform == 'linux' and linux_r_path not in sys.path: 
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
@@ -35,7 +35,7 @@ c0 = time.time()
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra_s'
 if 'win' in sys.platform.lower():
     # exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
-    exec_loc = r"C:\Users\jimmy\Documents\2PhDProjects\Software\SUTRA\bin\sutra.exe"
+    exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'HydroSim')
