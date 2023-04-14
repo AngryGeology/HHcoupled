@@ -6,7 +6,7 @@ Petrophysical functions for coupling SUTRA and R2.
 @author: jimmy
 """
 import numpy as np 
-from solveWaxSmit import solveRtWVP#, solveRtSt 
+# from solveWaxSmit import solveRtWVP#, solveRtSt 
 theta_param = np.genfromtxt('petroFit/theta_fit.txt')
 
 def parse_fit(fname):
@@ -81,23 +81,23 @@ def powerLaw(x,a,k,c):
     return (1/(a*(x**k))) + c 
 
 #%% petro functions in terms of GMC 
-def wmf_petro(sat):
-    # convert saturation to GMC 
-    gmc = sat2gmc(sat,gparam[2]['theta'],gparam[2]['Pg'])
-    # convert gmc to Rt 
-    Rt = solveRtWVP(gmc, gparam[2]['Rw'], gparam[2]['Pg'], 1.00,
-                    theta_param, gparam[2]['cec'], gparam[2]['FF'], 
-                    gparam[2]['n'])
-    return Rt 
+# def wmf_petro(sat):
+#     # convert saturation to GMC 
+#     gmc = sat2gmc(sat,gparam[2]['theta'],gparam[2]['Pg'])
+#     # convert gmc to Rt 
+#     Rt = solveRtWVP(gmc, gparam[2]['Rw'], gparam[2]['Pg'], 1.00,
+#                     theta_param, gparam[2]['cec'], gparam[2]['FF'], 
+#                     gparam[2]['n'])
+#     return Rt 
 
-def ssf_petro(sat):
-    # convert saturation to GMC 
-    gmc = sat2gmc(sat,gparam[1]['theta'],gparam[1]['Pg'])
-    # convert gmc to Rt 
-    Rt = solveRtWVP(gmc, gparam[1]['Rw'], gparam[2]['Pg'], 1.00,
-                    theta_param, gparam[1]['cec'], gparam[1]['FF'], 
-                    gparam[1]['n'])
-    return Rt 
+# def ssf_petro(sat):
+#     # convert saturation to GMC 
+#     gmc = sat2gmc(sat,gparam[1]['theta'],gparam[1]['Pg'])
+#     # convert gmc to Rt 
+#     Rt = solveRtWVP(gmc, gparam[1]['Rw'], gparam[2]['Pg'], 1.00,
+#                     theta_param, gparam[1]['cec'], gparam[1]['FF'], 
+#                     gparam[1]['n'])
+#     return Rt 
 
 #%% solve wmf in terms saturation 
 def wmf_petro_sat(sat):

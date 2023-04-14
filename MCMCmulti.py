@@ -15,7 +15,8 @@ from joblib import Parallel, delayed
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
 linux_r_path = '/home/jimmy/phd/resipy/src'
-win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+#win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+win_r_path = r'C:\Users\jimmy\Documents\resipy\src'
 if sys.platform == 'linux' and linux_r_path not in sys.path: 
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
@@ -32,10 +33,12 @@ c0 = time.time()
 # create working environment 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
-    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+#    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
     
 nchain = 12
 ncpu = 16
+nstep = 501
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'HydroMCMCmulti')
@@ -159,13 +162,12 @@ def run(i):
     depths, node_depths = h.getDepths()
     
     # run single mcmc single chain 
-    nstep = 200
     chainlog, ar = h.mcmc(nstep,0.234)
     df = pd.DataFrame(chainlog)
     df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
     
 
-print('Running...')
+print('Running... %i chains for %i iterations'%(nchain,nstep))
 Parallel(n_jobs=ncpu)(delayed(run)(i) for i in range(nchain))
 print('Done')
 
