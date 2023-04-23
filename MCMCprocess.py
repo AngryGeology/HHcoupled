@@ -20,9 +20,9 @@ dirname = 'Models/HydroMCMCmulti'
 # dirname = 'SyntheticStudy/Models/MCMC(no_error)/'
 # dists = {0: ['gauss', 'bimodal'],
 #          1: ['bimodal', 'bimodal']}
-dists = {0: ['bimodal', 'bimodal'],
-         1: ['bimodal', 'bimodal']}
-pt_threshold = 0.02
+dists = {0: ['gauss', 'bimodal'],
+         1: ['gauss', 'bimodal']}
+pt_threshold = 0.022
 # pt_threshold = 0.45
 
 savfig = True 

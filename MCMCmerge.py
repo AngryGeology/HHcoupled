@@ -22,6 +22,9 @@ def log2csv(fname):
         data[head] = [] 
 
     for i,line in enumerate(lines):
+        if line.strip() == 'Initial trial is unstable solution! Try a different starting model':
+            return {}
+        
         line = line.strip() 
         if line == '':
             continue 
@@ -115,9 +118,11 @@ for i,dname in enumerate(chain_dirs):
     if not os.path.exists(fpath):
         #attempt to recover data from the chain log 
         fpath2 = os.path.join(dname,'chain.log')
-        data = pd.DataFrame(log2csv(fpath2))
-        data.to_csv(fpath)
-    df = pd.read_csv(fpath)
+        df = pd.DataFrame(log2csv(fpath2))
+        if len(df) == 0:
+            continue 
+    else:
+        df = pd.read_csv(fpath)
     df['chain'] = chain_ids[i]
     master_df = pd.concat([master_df,df])
     
