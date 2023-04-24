@@ -10,18 +10,19 @@ from datetime import timedelta
 import numpy as np 
 import pandas as pd 
 import matplotlib.pyplot as plt 
+from joblib import Parallel, delayed
 # add custom modules 
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
 linux_r_path = '/home/jimmy/phd/resipy/src'
-win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+# win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+win_r_path = r'C:\Users\jimmy\Documents\resipy\src'
 if sys.platform == 'linux' and linux_r_path not in sys.path: 
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
     sys.path.append(win_r_path)
 from SUTRAhandler import handler, material 
-from petroFuncs import ssf_petro_sat, wmf_petro_sat, temp_uncorrect
-from petroFuncs import wmf_petro_sat_shallow
+from petroFuncs import ssf_petro_sat, wmf_petro_sat
 import createInput as ci 
 from createInput import secinday 
 from resipy import Project
@@ -31,21 +32,23 @@ c0 = time.time()
 # create working environment 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra'
 if 'win' in sys.platform.lower():
-    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    # exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
     
-chainno = int(input("Enter Chain number: "))
-
+nchain = 12
+ncpu = 16
+nstep = 1001 
+    
 synth_dir = 'SyntheticStudy'
 model_dir = os.path.join(synth_dir,'Models')
 sim_dir = os.path.join(model_dir,'MCMC')
-chain_dir = os.path.join(sim_dir,'chain%i'%chainno)
-for d in [model_dir,sim_dir,chain_dir]:
+for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
 #%% load in the data 
-elec = ci.HH_getElec()
-hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.Sy_data(1)
+elec = ci.Sy_getElec()
+hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.Sy_data(ncpu)
 TimeStamp = np.arange(len(hydro_data))
 times = np.asarray(TimeStamp, dtype=int)
 
@@ -100,10 +103,10 @@ SSF.setPetroFuncs(ssf_petro_sat, ssf_petro_sat)
 WMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.01, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.01, 2.0] 
-vn_SSF = [1.1, 0.05, 2.5]
-vn_WMF = [1.1, 0.05, 2.5]
+alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.02, 2.0] 
+vn_SSF = [1.1, 0.02, 2.5]
+vn_WMF = [1.1, 0.02, 2.5]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
@@ -111,53 +114,57 @@ wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
 SSF.setMCparam(ssf_param)
 WMF.setMCparam(wmf_param)
 
-#%% create handler 
-h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
-            flow = 'transient',
-            transport = 'transient',
-            sim_type='solute')
-h.maxIter = 300
-h.rpmax = 5e5  
-h.drainage = 1e-8
-h.clearDir()
-h.setMesh(mesh)
-h.setEXEC(exec_loc)
-h.cpu = 1 # number of processors to use 
+#%% run mcmc 
+def run(i):
+    chain_dir = os.path.join(sim_dir,'chain%i'%(i+1))
+    #create handler 
+    h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
+                flow = 'transient',
+                transport = 'transient',
+                sim_type='solute')
+    
+    h.maxIter = 300
+    h.rpmax = 5e5  
+    h.drainage = 1e-8
+    h.clearDir()
+    h.setMesh(mesh)
+    h.setEXEC(exec_loc)
+    h.cpu = 1 # number of processors to use 
+    
+    h.addMaterial(SSF,zone_flags['SSF'])
+    h.addMaterial(WMF,zone_flags['WMF'])
+    
+    h.setupInp(times=times, 
+               source_node=source_node, 
+               general_node=general_node, general_type=general_type, 
+               source_val=0,
+               solver='direct')
+    
+    h.pressure = general_pressure
+    h.writeInp(maximise_io=True) # write input without water table at base of column
+    h.writeBcs(times, source_node, fluidinp, tempinp)
+    h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS 
+    h.writeVg()
+    h.writeFil(ignore=['BCOP', 'BCOPG'])
+    
+    h.showSetup(True) 
+    
+    # setup R2 project for res modelling 
+    k = Project(dirname=chain_dir)
+    k.setElec(elec)
+    k.createMesh(cl_factor=4)
+    
+    h.setRproject(k)
+    h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
+    depths, node_depths = h.getDepths()
+    
+    # run single mcmc single chain 
+    chainlog, ar = h.mcmc(nstep,0.234)
+    df = pd.DataFrame(chainlog)
+    df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
 
-h.addMaterial(SSF,zone_flags['SSF'])
-h.addMaterial(WMF,zone_flags['WMF'])
 
-h.setupInp(times=times, 
-           source_node=source_node, 
-           general_node=general_node, general_type=general_type, 
-           source_val=0,
-           solver='direct')
-
-h.pressure = general_pressure
-h.writeInp(maximise_io=True) # write input without water table at base of column
-h.writeBcs(times, source_node, fluidinp, tempinp)
-h.writeIcs(nodal_pressures, nodal_temp) # INITIAL CONDITIONS 
-h.writeVg()
-h.writeFil(ignore=['BCOP', 'BCOPG'])
-
-h.showSetup(True) 
-
-#%% setup R2 project for res modelling 
-k = Project(dirname=sim_dir)
-k.setElec(elec)
-k.createMesh(cl_factor=4)
-
-h.setRproject(k)
-h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
-depths, node_depths = h.getDepths()
-
-setup_time = time.time() - c0 
-c0 = time.time() 
-
-#%% run single mcmc single chain 
-nstep = 10
-print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
-chainlog, ar = h.mcmc(nstep,0.234)
-df = pd.DataFrame(chainlog)
-df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
-print('Done.')
+#%% run multiple mcmc chains in parallel 
+print('Running... %i chains for %i iterations'%(nchain,nstep))
+Parallel(n_jobs=ncpu)(delayed(run)(i) for i in range(nchain))
+print('Done')

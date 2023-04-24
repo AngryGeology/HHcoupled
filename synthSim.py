@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 if 'RSUTRA' not in sys.path: 
     sys.path.append('RSUTRA')
 linux_r_path = '/home/jimmy/phd/resipy/src'
-win_r_path = r'C:\Users\boydj1\Software\resipy\src' 
+win_r_path = r'C:\Users\jimmy\Documents\resipy\src' 
 if sys.platform == 'linux' and linux_r_path not in sys.path: 
     sys.path.append(linux_r_path)
 if 'win' in sys.platform.lower() and win_r_path not in sys.path:
@@ -33,7 +33,8 @@ c0 = time.time()
 # create working environment 
 exec_loc = '/home/jimmy/programs/SUTRA_JB/bin/sutra_s'
 if 'win' in sys.platform.lower():
-    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    # exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
+    exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 synth_dir = 'SyntheticStudy'
 model_dir = os.path.join(synth_dir,'Models')
@@ -43,10 +44,10 @@ for d in [synth_dir,model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = False 
+model_res = True 
 
 #%% load in the data 
-elec = ci.HH_getElec()
+elec = ci.Sy_getElec()
 hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy = ci.HH_data(12)
 TimeStamp = np.arange(len(hydro_data))
 times = np.asarray(TimeStamp, dtype=int)
@@ -109,10 +110,10 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #%% create materials 
 # SSF properties 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=0.89,vn=1.11,name='STAITHES')
+                alpha=0.2,vn=1.9,name='STAITHES')
 # WMF properties 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-                alpha=0.08,vn=1.44,name='WHITBY')
+                alpha=0.1,vn=1.5,name='WHITBY')
 
 SSF.setPetroFuncs(ssf_petro_sat, ssf_petro_sat)
 WMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
@@ -224,6 +225,7 @@ if model_res:
     k = Project(dirname=sim_dir)
     k.setElec(elec)
     k.createMesh(cl_factor=4)
+    k.showMesh()
     
     h.setRproject(k)
     h.setupRparam(data_seq, write2in, survey_keys, seqs=sequences)
