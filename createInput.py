@@ -534,7 +534,7 @@ def Sy_data(ncpu=1,show=False):
         df = s.df[ie]
         df = df.rename(columns={'resist':'tr'})
         df['sidx'] = i 
-        df['error'] = np.abs(df['tr'])*0.05
+        df['error'] = np.abs(df['tr'])*0.02
         sequence = df[['a','b','m','n']].values
         return df, sequence 
     

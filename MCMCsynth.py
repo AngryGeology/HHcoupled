@@ -94,7 +94,7 @@ tdx = sum(dx)
 fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc, len(source_node),ntimes)
 
 #%% create materials 
-SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
+SSF = material(Ksat=0.14,theta_res=0.06,theta_sat=0.38,
                alpha=0.1317,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.012,vn=1.44,name='WHITBY')

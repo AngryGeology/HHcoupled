@@ -109,7 +109,7 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 
 #%% create materials 
 # SSF properties 
-SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
+SSF = material(Ksat=0.14,theta_res=0.06,theta_sat=0.38,
                 alpha=0.2,vn=1.9,name='STAITHES')
 # WMF properties 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
