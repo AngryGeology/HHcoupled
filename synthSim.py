@@ -247,8 +247,7 @@ if model_res:
     
     # now setup R2 folders 
     c0 = time.time() 
-    h.setupRruns(write2in,run_keys,survey_keys,sequences,
-                 tfunc=temp_uncorrect,diy=sdiy)
+    h.setupRruns(write2in,run_keys,survey_keys,sequences)
     
     #now go through and run folders 
     h.runResFwdmdls(run_keys)

@@ -37,7 +37,7 @@ if 'win' in sys.platform.lower():
     
 nchain = 12
 ncpu = 16
-nstep = 1001 
+nstep = 1001
     
 synth_dir = 'SyntheticStudy'
 model_dir = os.path.join(synth_dir,'Models')
@@ -127,6 +127,7 @@ def run(i):
     h.rpmax = 5e5  
     h.drainage = 1e-8
     h.clearDir()
+    h.clearMultiRun()
     h.setMesh(mesh)
     h.setEXEC(exec_loc)
     h.cpu = 1 # number of processors to use 

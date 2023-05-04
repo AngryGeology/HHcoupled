@@ -23,10 +23,10 @@ dirname = 'SyntheticStudy/Models/MCMC/'
 #          1: ['bimodal', 'bimodal']}
 
 dists = {0: ['gauss', 'gauss'],
-         1: ['gauss', 'bimodal']}
+         1: ['gauss', 'gauss']}
 pt_threshold = 0.022
 
-pt_threshold = 0.2
+pt_threshold = 0.55
 
 savfig = True 
 nzones = 2
