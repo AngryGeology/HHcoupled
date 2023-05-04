@@ -534,7 +534,7 @@ def Sy_data(ncpu=1,show=False):
         df = s.df[ie]
         df = df.rename(columns={'resist':'tr'})
         df['sidx'] = i 
-        df['error'] = np.abs(df['tr'])*0.05
+        df['error'] = np.abs(df['tr'])*0.02
         sequence = df[['a','b','m','n']].values
         return df, sequence 
     
@@ -566,6 +566,20 @@ def Sy_data(ncpu=1,show=False):
         return fig 
                 
     return hydro_data, data_seq, sequences, survey_keys, rfiles, sdiy
+
+def Sy_getElec():
+    topo = pd.read_csv('Data/topoData/2016-01-08.csv')
+    elec = pd.read_csv('Data/elecData/2016-01-08.csv')
+    # doctor elec 
+    elec['label'] = [str(elec['id'][i]) for i in range(len(elec))]
+    elecx = elec['y'].values 
+    elec.loc[:,'y'] = 0 
+    elec.loc[:,'x'] = elecx 
+    # fit a generic polyline to get a similar slope profile of the actual hill 
+    tx = topo['y'].values # actually grid is located against the y axis, make this the local x coordinate in 2d 
+    p = np.polyfit(tx,topo['z'].values,1) # fit elevation to along ground distance data 
+    elec.loc[:,'z'] = np.polyval(p,elecx) # fit the modelled topography 
+    return elec 
 
 #%% prep rainfall 
 def prepRainfall(dx,precip,pet,kc,numnp,ntimes, show=False):

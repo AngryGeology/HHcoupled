@@ -38,7 +38,7 @@ if 'win' in sys.platform.lower():
     
 nchain = 12
 ncpu = 16
-nstep = 501
+nstep = 1001
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'HydroMCMCmulti')
@@ -106,10 +106,10 @@ WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
 RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.05, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.05, 2.0] 
-vn_SSF = [0.9, 0.05, 2.5]
-vn_WMF = [1.1, 0.05, 2.5]
+alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.001, 0.02, 2.0] 
+vn_SSF = [0.9, 0.02, 2.5]
+vn_WMF = [1.1, 0.02, 2.5]
 K_SSF = [0.14,0.1,0.64]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
