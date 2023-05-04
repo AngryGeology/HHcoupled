@@ -43,9 +43,9 @@ master['sat'] = sat
 fig, ax = plt.subplots()
 
 uni_names = np.unique(master["Sample"].values)
-# unwanted = ['HH01- 4.5V', #'HH01-1.5H',
-#             "HH02 - 3.1V", "HH02 - 6.2V"]
-unwanted = ['HH01- 4.5V'] 
+unwanted = ['HH01- 4.5V', #'HH01-1.5H',
+            "HH02 - 3.1V", "HH02 - 6.2V"]
+# unwanted = ['HH01- 4.5V'] 
 
 cols = [(0.7, 0.7, 0.5),
         (0.2, 0.2, 0.2),
