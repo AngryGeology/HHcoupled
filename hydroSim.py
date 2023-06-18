@@ -125,7 +125,7 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #%% create materials 
 # SSF properties from mcmc search 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=0.24,vn=1.31,name='STAITHES')
+                alpha=0.24,vn=1.30,name='STAITHES')
 # SSF properties from curve fitting 
 # SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
 #                 alpha=0.9,vn=1.1,name='STAITHES')

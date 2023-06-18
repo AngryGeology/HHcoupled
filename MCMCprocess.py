@@ -8,29 +8,40 @@ Plot the results of an MCMC chain
 import os
 import numpy as np
 import pandas as pd
+import seaborn as sns 
 import matplotlib.pyplot as plt
-from scipy.stats import norm
 from scipy.optimize import curve_fit
 plt.close('all')
+# sns.set_theme(style="dark")
 
 # %% main program parameters
 # get mcmc result file
 
-# dirname = 'Models/HydroMCMCmulti'
-# dirname = 'Models/HydroMCMC'
-dirname = 'SyntheticStudy/Models/MCMC/'
-# dirname = 'SyntheticStudy/Models/MCMC(no_error)/'
-# dists = {0: ['gauss', 'bimodal'],
-#          1: ['bimodal', 'bimodal']}
-
-dists = {0: ['gauss', 'gauss'],
-         1: ['gauss', 'gauss']}
-pt_threshold = 0.022
-
-pt_threshold = 0.55
-
-savfig = True 
+synth = False 
+savfig = False 
+contour = False 
+style = True 
 nzones = 2
+
+if synth:
+    dirname = 'SyntheticStudy/Models/MCMC/'    
+    dists = {0: ['gauss', 'gauss'],
+              1: ['gauss', 'gauss']}
+    pt_threshold = 0.58
+    simN = {0:1.9, 1:1.5}
+    simA = {0:0.2, 1:0.1}
+else:
+    dirname = 'Models/HydroMCMCmulti'
+    # dirname = 'Models/HydroMCMC'
+    dists = {0: ['gauss', 'gauss'],
+             1: ['gauss', 'bimodal']}
+    pt_threshold = 0.022
+    simN = None 
+    simA = None 
+    
+xlim = [0.0, 1.1]
+ylim = [1.1, 2.5]
+cmap = 'turbo'
 
 # %% functions
 # fitting distributions
@@ -116,9 +127,9 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, trans=False):
     else:
         color = (0, 0, 1, 1)
 
-    ax_histx.hist(x, bins=100, density=True, color=color)
+    ax_histx.hist(x, bins=100, density=True, color=color, edgecolor=color)
     ax_histy.hist(y, orientation='horizontal', bins=100, density=True,
-                  color=color)
+                  color=color, edgecolor=color)
 
 # fit testing
 # data = np.concatenate([np.random.normal(5,5,10000),np.random.normal(-10,5,5000)])
@@ -173,11 +184,58 @@ params = {}
 for i in range(nzones):
     params[i] = {}
     n = i+1
-    cmp = axs[i].tricontourf(df['alpha_%i' % n][stable],
+    xi = df['alpha_%i' % n][stable].values 
+    yi = df['vn_%i' % n][stable].values
+    
+    # create matrix of likelihoods and density 
+    binwidth = 0.025
+    xn = int((xlim[1] - xlim[0])/binwidth)
+    yn = int((ylim[1] - ylim[0])/binwidth)
+    xg = np.linspace(xlim[0], xlim[1], xn)
+    yg = np.linspace(ylim[0], ylim[1], yn)
+    xgg, ygg = np.meshgrid(xg,yg)
+    Lmat = np.zeros((yn-1, xn-1), dtype=float) # likelihood matrix 
+    Dmat = np.zeros((yn-1, xn-1), dtype=int) # density matrix
+    for ii in range(xgg.shape[0]-1):
+        for jj in range(ygg.shape[1]-1):
+            idx = (xi >= xgg[ii,jj]) & (xi < xgg[ii+1,jj+1]) & (yi >= ygg[ii,jj]) & (yi < ygg[ii+1,jj+1])
+            A = df['Pt'][stable][idx]
+            if len(A) > 0: 
+                Lmat[ii,jj] = np.max(A)
+                Dmat[ii,jj] = len(A)
+            else:
+                Lmat[ii,jj] = np.nan
+                Dmat[ii,jj] = 0
+                
+    if contour: 
+        cmp = axs[i].tricontourf(df['alpha_%i' % n][stable],
+                                 df['vn_%i' % n][stable],
+                                 df['Pt'][stable])
+    elif style:
+        vmin = np.min(df['Pt'][stable])
+        vmax = np.max(df['Pt'][stable])
+
+        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
                              df['vn_%i' % n][stable],
-                             df['Pt'][stable])
+                             c = df['Pt'][stable],
+                             marker='.',cmap=cmap,
+                             vmin=vmin,vmax=vmax)
+        
+        axs[i].pcolor(xgg,ygg,Lmat,cmap=cmap, alpha = 0.75, 
+                      vmin=vmin,vmax=vmax)
+
+    else: 
+        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
+                             df['vn_%i' % n][stable],
+                             c = df['Pt'][stable],
+                             marker='.')
+    if synth:
+        axs[i].scatter(simA[i], simN[i], c='r', marker='+',s=30)
+        
     axs[i].set_xlabel('Alpha (1/m)')
     axs[i].set_ylabel('N (-)')
+    axs[i].set_xlim(xlim)
+    axs[i].set_ylim(ylim)
     if i == 0:
         cbar = plt.colorbar(cmp, ax=cax, location="bottom")
         cbar.set_label('Normalised Likelihood')
@@ -195,7 +253,6 @@ for i in range(nzones):
     # fit a histogram (to the better fitting selections)
     try:
         px = distx.fit()
-
         # following code plots the fit on the histograms
         lx = np.linspace(min(x), max(x), 100)
         distx.plot(axs['hist_x%i' % i], 'r')
@@ -236,23 +293,23 @@ for i in range(nzones):
 
 print('Nsample = %i' % nsample)
 
-for chain in np.unique(df['chain']):
-    idx = (df['chain'] == chain) & (df['Pt'] > 0)
-    color = (0.2, 0.2, 0.2, 0.5)
-    for i in range(nzones):
-        n = i+1
-        x = df['alpha_%i' % n][idx]
-        y = df['vn_%i' % n][idx]
-        axs[i].plot(x, y, color=color)
-    # if chain == 0:
+# for chain in np.unique(df['chain']):
+#     idx = (df['chain'] == chain) & (df['Pt'] > 0)
+#     color = (0.2, 0.2, 0.2, 0.5)
+#     for i in range(nzones):
+#         n = i+1
+#         x = df['alpha_%i' % n][idx]
+#         y = df['vn_%i' % n][idx]
+#         # axs[i].plot(x, y, color=color)
+#     # if chain == 0:
 
-    axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx])
+#     axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx])
 
-for i in range(nzones):
-    figure_file_wpaths = os.path.join(
-        dirname, 'mcmc_figure_zone%i_wpaths.png' % i)
-    if savfig:
-        figs[i].savefig(figure_file_wpaths)
+# for i in range(nzones):
+#     figure_file_wpaths = os.path.join(
+#         dirname, 'mcmc_figure_zone%i_wpaths.png' % i)
+#     if savfig:
+#         figs[i].savefig(figure_file_wpaths)
 
 best_model_idx = np.argmax(df['Pt'])
 for i in range(nzones):

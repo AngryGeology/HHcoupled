@@ -2364,7 +2364,7 @@ class handler:
                     to_copy.append(f)
                     
             rdir = self.createPdir(i,to_copy,pargs) # run directory 
-            self.writeInp(rdir)
+            self.writeInp(rdir,maximise_io=True)
             self.writeVg(swres,swsat,alpha,vn,dname=rdir) 
         
             

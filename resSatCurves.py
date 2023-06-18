@@ -218,11 +218,11 @@ for i, name in enumerate(fit_names):
 
         # uncomment to write to file
 
-        fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
-        fh.write('a: %f\n'%a)
-        fh.write('k: %f\n'%k)
-        fh.write('c: %f\n'%c)
-        fh.close()
+        # fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
+        # fh.write('a: %f\n'%a)
+        # fh.write('k: %f\n'%k)
+        # fh.write('c: %f\n'%c)
+        # fh.close()
 
         mdl = powerLaw(X, a, k, c)
         mdlRt = powerLaw(mdlSat, a, k, c)
@@ -257,4 +257,4 @@ ax.grid(True, 'major', linestyle='--',
 ax.grid(True, 'minor', linestyle=':', 
         color=(0.5, 0.5, 0.7, 0.3))
 
-fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure
+# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure
