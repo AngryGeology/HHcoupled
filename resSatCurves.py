@@ -62,6 +62,7 @@ for name in uni_names:
     # choose colour of marker, WMF, ssf, wmf disturbed
     col = cols[0]
     label = 'SSF data'
+    mark = '1'
 
     if 'HH02' in name:
         col = cols[1]
@@ -69,21 +70,22 @@ for name in uni_names:
         # label = 'WMF - I'
         if master['depth'][idx].values[-1] < 1.5:
             col = cols[2]
+            mark = '.' 
             label = 'WMF data (shallow)'
             
     if 'HH01' in name:
         col = cols[0]
-        label = 'SSF data (deep)' 
+        label = 'SSF data (vertical)' 
         # label = 'WMF - I'
         if master['depth'][idx].values[-1] < 1.5:
             col = cols[0]
             label = 'SSF data (shallow)'
 
     # mark off if vertical or horizontal - chooses shape of marker
-    mark = '1'
     if 'H' == name[-1]:
-        mark = '+'
-        # label += 'H'
+        if mark != '.': #ignore if set to '.' already 
+            mark = '+'
+        label = label.replace('vertical','horizontal')
     else:
         pass 
         # label += 'V'
@@ -257,4 +259,5 @@ ax.grid(True, 'major', linestyle='--',
 ax.grid(True, 'minor', linestyle=':', 
         color=(0.5, 0.5, 0.7, 0.3))
 
-# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure
+fig.set_tight_layout(True)
+# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/tosubmission/fig02.jpg',dpi=600)## uncomment to save figure

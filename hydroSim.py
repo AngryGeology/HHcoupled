@@ -38,13 +38,13 @@ if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroSim')
+sim_dir = os.path.join(model_dir,'HydroSim1')
 datadir = os.path.join(sim_dir,'SimData')
 for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = True  
+model_res = True 
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -306,3 +306,8 @@ if model_res:
 print('Setup time : %f'%setup_time)
 print('Hydrological model runtime: %f'%hydro_run_time)
 print('Resistivity modelling runtime: %f'%res_run_time)
+
+#%% save dataframes for fitting statistics 
+
+data_store[0].to_csv(os.path.join(sim_dir,'sim_seq.csv'))
+data_seq.to_csv(os.path.join(sim_dir,'meas_seq.csv'))

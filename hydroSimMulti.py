@@ -41,7 +41,7 @@ if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroSimMulti')
+sim_dir = os.path.join(model_dir,'HydroSimMulti2')
 for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
@@ -49,7 +49,8 @@ for d in [model_dir,sim_dir]:
 
 samples = 1000
 ncpu = 16 
-run_hydro = False 
+run_hydro = True  
+savefig = True 
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -137,24 +138,38 @@ RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 #%% create MC param 
 
-ssf_config = {'alpha':0.244049,
-              'alpha_sigma':0.091054,
-              'n':1.298371,
-              'n_sigma':0.057363}
+ssf_config = {'alpha1':0.245450,
+              'alpha1_sigma':0.063436,
+              'alpha2':0.020895,
+              'alpha2_sigma':0.022667,
+              'n1':1.304514,
+              'n1_sigma':0.044051,
+              'n2':1.716462,
+              'n2_sigma':0.036610}
 
-wmf_config = {'alpha':0.114789,
-              'alpha_sigma':0.036240,
-              'n1':1.640132,
-              'n1_sigma':0.118476,
-              'n2':2.141462,
-              'n2_sigma':0.268010}
+#nb: disgarding the other alpha value for the sandstone as it is likeley to be be unrealistic 
 
-samples2 = int(samples/2)
-ssf_a = np.random.normal(ssf_config['alpha'], ssf_config['alpha_sigma'], samples) 
-ssf_n = np.random.normal(ssf_config['n'], ssf_config['n_sigma'], samples) 
+wmf_config = {'alpha':0.130090,
+              'alpha_sigma':0.058717,
+              'n1':1.589337,
+              'n1_sigma':0.129753,
+              'n2':1.194290,
+              'n2_sigma':0.036097}
+
+ssf_a = np.random.normal(ssf_config['alpha1'], ssf_config['alpha1_sigma'], samples) 
+# ssf_a = np.concatenate([np.random.normal(ssf_config['alpha1'], ssf_config['alpha1_sigma'], int(samples*0.9)),
+#                         np.random.normal(ssf_config['alpha2'], ssf_config['alpha2_sigma'], int(samples*0.1))])
+ssf_n = np.concatenate([np.random.normal(ssf_config['n1'], ssf_config['n1_sigma'], int(samples*0.9)), 
+                        np.random.normal(ssf_config['n2'], ssf_config['n2_sigma'], int(samples*0.1))])
+
 wmf_a = np.random.normal(wmf_config['alpha'], wmf_config['alpha_sigma'], samples) 
-wmf_n = np.concatenate([np.random.normal(wmf_config['n1'], wmf_config['n1_sigma'], samples2), 
-                        np.random.normal(wmf_config['n2'], wmf_config['n2_sigma'], samples2)])
+wmf_n = np.concatenate([np.random.normal(wmf_config['n1'], wmf_config['n1_sigma'], int(samples*0.9)), 
+                        np.random.normal(wmf_config['n2'], wmf_config['n2_sigma'], int(samples*0.1))])
+
+#ensure non zero values in wmf_a 
+for i in range(wmf_a.shape[0]):
+    while wmf_a[i] < 0.01 :
+        wmf_a[i] = np.random.normal(wmf_config['alpha'], wmf_config['alpha_sigma']) 
 
 ssf_param = {'alpha':ssf_a,'vn':ssf_n}
 wmf_param = {'alpha':wmf_a,'vn':wmf_n}
@@ -169,12 +184,19 @@ for i in range(2):
     axs[0,i].set_xlabel('alpha (1/m)')
 axs[0,0].set_title('SSF')
 axs[0,1].set_title('WMF')
+axs[0,0].set_ylabel('Probability Density')
+axs[1,0].set_ylabel('Probability Density')
 
 nbin = 100 
-axs[0,0].hist(ssf_a,bins=nbin)
-axs[1,0].hist(ssf_n,bins=nbin)
-axs[0,1].hist(wmf_a,bins=nbin)
-axs[1,1].hist(wmf_n,bins=nbin)
+axs[0,0].hist(ssf_a, bins=nbin, density=True)
+axs[1,0].hist(ssf_n, bins=nbin, density=True)
+axs[0,1].hist(wmf_a, bins=nbin, density=True)
+axs[1,1].hist(wmf_n, bins=nbin, density=True)
+
+fig.set_size_inches([10,7])
+fig.set_tight_layout(True)
+if savefig: 
+    fig.savefig(os.path.join(sim_dir,'parameter_dists.png'))
 
 #%% run hydrological models 
 run_time = 0 
@@ -248,6 +270,9 @@ if run_hydro:
     retrieval_time = time.time() - c0 
     
     np.save(os.path.join(sim_dir,'satmatrix.npy'),satmatrix)
+    satmatrix = None 
+    
+    h.clearMultiRun()
     
     # report on timings 
     print('Setup time : %f s'%setup_time)
@@ -339,6 +364,7 @@ for i in range(nstep):
     stats_ssf['avg'][i] = np.mean(a)
     
 fig, (ax,axc,axr) = plt.subplots(nrows=3)
+fig.set_tight_layout(True)
 
 # add rainfall 
 axr.bar(hydro_data['datetime'],hydro_data['PRECIP'].values,
@@ -380,7 +406,7 @@ ax.plot(hydro_data['datetime'], stats_ssf['avg'][1:],
 
 
 ax.set_ylabel('Saturation (-)')
-ax.legend()
+ax.legend(loc='upper right')
 ax.set_ylim([np.min(std_min),1])
 
 # add cosmos track 
@@ -430,8 +456,13 @@ for j in [11,12,13,24,25,26,29,30,31]:
         sqdist = ((x0-x1)**2) + ((y0-y1)**2)
         dist = np.sqrt(sqdist)
         movements[i] = dist 
-    ax2.bar(peg_dates,movements,color='r',width=10)
+    ax2.bar(peg_dates,movements,color='g',width=20)
 ax2.set_ylabel('Maximum measured peg movement (m)')
+
+for peg_date in peg_dates:
+    xx = [peg_date,peg_date]
+    yy = [0,45]
+    ax1.plot(xx,yy,color='g',linestyle=':')
 
 ### moisture content estimation ###  
 std_max = stats_wmf['avg_mc'][1:] + stats_wmf['std_mc'][1:]
@@ -457,6 +488,7 @@ ax1.legend(loc='upper left')
 ax1.set_xlim([datetime(2015,1,1),datetime(2017,1,1)])
 ax1.set_ylabel('Gravimetric Moisture Content')
 ax1.set_xlabel('Date')
+ax1.set_ylim([10,40])
 
 #%% count times each simulation exceeded limit X in 2016
 pnct = [0]*nstep

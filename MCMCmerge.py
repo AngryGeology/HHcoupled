@@ -7,8 +7,8 @@ Merge MCMC logs
 import os 
 import pandas as pd 
 
-# dirname = 'Models/HydroMCMCmulti'
-dirname = 'SyntheticStudy/Models/MCMC'
+dirname = 'Models/HydroMCMCmulti'
+# dirname = 'SyntheticStudy/Models/MCMC'
 
 def log2csv(fname): 
     fh = open(fname,'r')
@@ -104,7 +104,7 @@ def log2csv(fname):
             
     return data 
 
-entries = os.listdir(dirname)
+entries = sorted(os.listdir(dirname))
 chain_dirs = []
 chain_ids = []
 for e in entries: 

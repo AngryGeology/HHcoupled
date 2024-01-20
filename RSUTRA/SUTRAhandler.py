@@ -1078,6 +1078,13 @@ class handler:
         self.mesh.df['perm'] = np.zeros(mesh.numel,dtype=float) # permeability by element basis 
         self.mesh.ptdf['por'] = np.zeros(mesh.numnp,dtype=float) # porosity by node basis 
         
+        # get mesh node depths 
+        sx, sz = mesh.extractSurface(False,False)
+        cell_depths = mesh.computeElmDepth()
+        node_depths = np.interp(mesh.node[:,0], sx, sz) - mesh.node[:,2]
+        self.mesh.ptdf['depth'] = node_depths 
+        self.mesh.df['depth'] = cell_depths
+    
         
     def getSurfaceArea(self):
         """
@@ -1519,9 +1526,16 @@ class handler:
                 elif general_type[i]  == 'drain':
                     line = "%i -1. 0. 100000. -%e 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
-                    line = "%i %e, 0. %e 0. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                    line = "%i %e, 0. %e -1. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
                                                                                    self.pressure[i]+(2*9180))
+                elif general_type[i] == 'evap':
+                    P1 = self.mesh.ptdf['depth'][general_node[i]-1]*-1*9180
+                    line = "%i %e, 0. %e %e 'Q' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                                                                                   P1,
+                                                                                   -1,
+                                                                                   self.pressure[i])
+                    
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     
