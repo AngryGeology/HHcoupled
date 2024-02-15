@@ -9,8 +9,7 @@ fitting in terms of saturation and resistivity
 """
 
 # import modules and relevant data
-import os
-import sys
+import os, sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
