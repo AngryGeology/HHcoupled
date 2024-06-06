@@ -817,7 +817,7 @@ class material:
             ks = self.MCparam['K']
             perms = [(_k*u)/(p*g) for _k in ks]
             self.MCparam['k'] = perms
-            del self.param['K'] # remove conductivity 
+            del self.MCparam['K'] # remove conductivity 
         
         if return_value:  
             return  perm # in m^2 

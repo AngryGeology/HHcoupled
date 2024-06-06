@@ -111,6 +111,7 @@ alpha_WMF = [0.001, 0.02, 2.0]
 vn_SSF = [0.9, 0.02, 2.5]
 vn_WMF = [1.1, 0.02, 2.5]
 K_SSF = [0.14,0.1,0.64]
+K_WMF = [0.14,0.1,0.64]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
