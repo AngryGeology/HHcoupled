@@ -15,18 +15,18 @@ plt.close('all')
 
 # %% main program parameters
 # get mcmc result file
-# dirname = 'Models/HydroMCMCmulti'
+dirname = 'Models/HydroMCMCmulti'
 # dirname = 'Models/HydroMCMC'
-dirname = 'SyntheticStudy/Models/MCMC/'
+# dirname = 'SyntheticStudy/Models/MCMC/'
 # dirname = 'SyntheticStudy/Models/MCMC(no_error)/'
-# dists = {0: ['gauss', 'bimodal'],
-#          1: ['bimodal', 'bimodal']}
+dists = {0: ['gauss', 'bimodal'],
+          1: ['bimodal', 'bimodal']}
 
 dists = {0: ['gauss', 'gauss'],
          1: ['gauss', 'gauss']}
 pt_threshold = 0.022
 
-pt_threshold = 0.55
+# pt_threshold = 0.55
 
 savfig = True 
 nzones = 2
