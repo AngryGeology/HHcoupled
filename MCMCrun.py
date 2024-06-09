@@ -106,14 +106,16 @@ alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT
 alpha_WMF = [0.001, 0.02, 2.0] 
 vn_SSF = [0.9, 0.02, 2.5]
 vn_WMF = [1.1, 0.02, 2.5]
-K_SSF = [0.14,0.1,1.00]
-K_WMF = [0.001,0.1,0.14]
+K_SSF = [0.064,0.1,6.4]
+K_WMF = [0.0013,0.1,0.13]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF, 'K':K_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF, 'K':K_WMF}
+ssf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
+wmf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
 
-SSF.setMCparam(ssf_param)
-WMF.setMCparam(wmf_param)
+SSF.setMCparam(ssf_param, ssf_pdist)
+WMF.setMCparam(wmf_param, wmf_pdist)
 
 #%% create handler 
 h = handler(dname=chain_dir, ifac=1,tlength=secinday,iobs=1, 
@@ -162,7 +164,7 @@ setup_time = time.time() - c0
 c0 = time.time() 
 
 #%% run single mcmc single chain 
-nstep = 11
+nstep = 21
 print('Running MCMC chain %i...'%chainno,end='') # uncomment to run single chain 
 chainlog, ar = h.mcmc(nstep,0.234)
 df = pd.DataFrame(chainlog)
