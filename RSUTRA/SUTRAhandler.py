@@ -324,13 +324,37 @@ def giveValues(v0,v1,n,dist='uniform'):
     else: # shouldnt happen 
         raise Exception('Distribution type is unknown!')
     
-def stepWalk(size, dist='normal'):
+def stepWalk(iarg, size, dist='normal'):
+    """
+    Walk a 'random' step
+
+    Parameters
+    ----------
+    iarg : float
+        Starting value 
+    size : float 
+        Size of normal step 
+    dist : str, optional
+        Type of scale, use lognormal to walk randomly in log space. 
+        The default is 'normal'.
+
+    Raises
+    ------
+    Exception
+        If dist is of unkown type. 
+
+    Returns
+    -------
+    u: float 
+        New value for random walk 
+
+    """
+    step = size * np.random.randn(1)[0]
     if dist == 'normal':
-        step = size * np.random.randn(1)[0]
-        return step # do random walk 
+        return iarg + step # do random walk 
     elif dist == 'lognormal':
-        step = np.log10(size) * np.random.randn(1)[0]
-        return 10**step 
+        u = np.log10(iarg)+ step 
+        return 10**u 
     else: # shouldnt happen 
         raise Exception('Distribution type is unknown!')
         
@@ -773,6 +797,7 @@ class material:
         self.MCparam = {} 
         self.niter = None # number of iterations / model runs 
         self.pdist = 'normal'
+        self.MCpdist = {}
         
         # Sw estimation 
         self.thick = 1 
@@ -816,8 +841,14 @@ class material:
         if 'K' in self.MCparam.keys(): 
             ks = self.MCparam['K']
             perms = [(_k*u)/(p*g) for _k in ks]
+            if 'K' in self.MCpdist.keys():
+                pdist = self.MCpdist['K']
+                del self.MCpdist['K']
+            else:
+                pdist = 'normal'
+            self.MCpdist['k'] = pdist 
             self.MCparam['k'] = perms
-            del self.param['K'] # remove conductivity 
+            del self.MCparam['K'] # remove conductivity key (so that sutra handler works)
         
         if return_value:  
             return  perm # in m^2 
@@ -894,7 +925,7 @@ class material:
         P = invVGcurve(S,self.sat,self.res,self.alpha,self.vn)
         return P 
     
-    def setMCparam(self,param):
+    def setMCparam(self,param, pdist = None):
         """
         Set Monte Carlo parameters 
 
@@ -915,6 +946,12 @@ class material:
             
         self.niter = max(lengths)
         self.MCparam = param 
+        self.MCpdist = {} 
+        if pdist is None:
+            for key in self.MCparam.keys():
+                self.MCpdist[key] = 'normal'
+        else:
+            self.MCpdist = pdist 
         
         if 'K' in self.MCparam.keys(): 
             self.convertk2K()
@@ -1078,6 +1115,13 @@ class handler:
         self.mesh.df['perm'] = np.zeros(mesh.numel,dtype=float) # permeability by element basis 
         self.mesh.ptdf['por'] = np.zeros(mesh.numnp,dtype=float) # porosity by node basis 
         
+        # get mesh node depths 
+        sx, sz = mesh.extractSurface(False,False)
+        cell_depths = mesh.computeElmDepth()
+        node_depths = np.interp(mesh.node[:,0], sx, sz) - mesh.node[:,2]
+        self.mesh.ptdf['depth'] = node_depths 
+        self.mesh.df['depth'] = cell_depths
+    
         
     def getSurfaceArea(self):
         """
@@ -1519,9 +1563,16 @@ class handler:
                 elif general_type[i]  == 'drain':
                     line = "%i -1. 0. 100000. -%e 'N' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], self.drainage)
                 elif general_type[i] == 'pres':
-                    line = "%i %e, 0. %e 0. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                    line = "%i %e, 0. %e -1. 'P' 'P' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
                                                                                    self.pressure[i],
                                                                                    self.pressure[i]+(2*9180))
+                elif general_type[i] == 'evap':
+                    P1 = self.mesh.ptdf['depth'][general_node[i]-1]*-1*9180
+                    line = "%i %e, 0. %e %e 'Q' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%(general_node[i], 
+                                                                                   P1,
+                                                                                   -1,
+                                                                                   self.pressure[i])
+                    
                 else: # standard general node, to do add functionality for this     
                     line = "%i -1. 0. 0. 0. 'N' 'N' 0. 'REL' 0. 'Data Set 21A'\n"%general_node[i]
                     
@@ -2364,7 +2415,7 @@ class handler:
                     to_copy.append(f)
                     
             rdir = self.createPdir(i,to_copy,pargs) # run directory 
-            self.writeInp(rdir)
+            self.writeInp(rdir,maximise_io=True)
             self.writeVg(swres,swsat,alpha,vn,dname=rdir) 
         
             
@@ -2690,9 +2741,12 @@ class handler:
                 v1 = m.MCparam['k'][2]
                 size = m.MCparam['k'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['k']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['k'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['k'][zone], size, m.MCpdist['k'])
                 self.mesh.ptdf.loc[zidx,'perm'] = v 
                 pargs['k'][zone] = v 
                 inrange[zone] = checkRange(v, v0, v1)
@@ -2702,9 +2756,12 @@ class handler:
                 v1 = m.MCparam['theta'][2]
                 size = m.MCparam['theta'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['theta']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['theta'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['theta'][zone], size, m.MCpdist['theta'])
                 self.mesh.df.loc[eidx,'por'] = v 
                 pargs['theta'][zone] = v 
                 if inrange[zone]: #if true check if needs changing to false 
@@ -2715,9 +2772,12 @@ class handler:
                 v1 = m.MCparam['alpha'][2]
                 size = m.MCparam['alpha'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['alpha']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['alpha'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['alpha'][zone], size, m.MCpdist['alpha'])
                 alpha[zone] = v 
                 pargs['alpha'][zone] = v 
                 if inrange[zone]:
@@ -2730,9 +2790,12 @@ class handler:
                 v1 = m.MCparam['vn'][2]
                 size = m.MCparam['vn'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['vn']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['vn'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['vn'][zone], size, m.MCpdist['vn'])
                 vn[zone] = v 
                 pargs['vn'][zone] = v 
                 if inrange[zone]:
@@ -2745,9 +2808,12 @@ class handler:
                 v1 = m.MCparam['res'][2]
                 size = m.MCparam['res'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['res']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['res'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['res'][zone], size, m.MCpdist['res'])
                 swres[zone] = v 
                 pargs['res'][zone] = v 
                 if inrange[zone]:
@@ -2760,9 +2826,12 @@ class handler:
                 v1 = m.MCparam['sat'][2]
                 size = m.MCparam['sat'][1]
                 if start: # if starting run then return random value 
-                    v = giveValues(v0, v1, 1)[0]
+                    pdist = 'uniform'
+                    if 'log' in m.MCpdist['sat']:
+                        pdist = 'loguniform'
+                    v = giveValues(v0, v1, 1, pdist)[0]
                 else: 
-                    v = ipargs['sat'][zone] + stepWalk(size,m.pdist)
+                    v = stepWalk(ipargs['sat'][zone], size, m.MCpdist['sat'])
                 swsat[zone] = v 
                 pargs['sat'][zone] = v 
                 if inrange[zone]:

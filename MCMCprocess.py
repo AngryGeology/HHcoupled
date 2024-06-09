@@ -8,10 +8,12 @@ Plot the results of an MCMC chain
 import os
 import numpy as np
 import pandas as pd
+import seaborn as sns 
 import matplotlib.pyplot as plt
-from scipy.stats import norm
 from scipy.optimize import curve_fit
+from scipy.stats import shapiro
 plt.close('all')
+# sns.set_theme(style="dark")
 
 # %% main program parameters
 # get mcmc result file
@@ -22,14 +24,37 @@ dirname = 'Models/HydroMCMCmulti'
 dists = {0: ['gauss', 'bimodal'],
           1: ['bimodal', 'bimodal']}
 
-dists = {0: ['gauss', 'gauss'],
-         1: ['gauss', 'gauss']}
+# dists = {0: ['gauss', 'gauss'],
+#          1: ['gauss', 'gauss']}
 pt_threshold = 0.022
 
 # pt_threshold = 0.55
 
+synth = True 
 savfig = True 
+contour = False 
+style = True 
 nzones = 2
+
+if synth:
+    dirname = 'SyntheticStudy/Models/MCMC/'    
+    dists = {0: ['gauss', 'bimodal'],
+              1: ['gauss', 'bimodal']}
+    pt_threshold = 0.6
+    simN = {0:1.9, 1:1.5}
+    simA = {0:0.2, 1:0.1}
+else:
+    dirname = 'Models/HydroMCMCmulti'
+    # dirname = 'Models/HydroMCMC'
+    dists = {0: ['bimodal', 'bimodal'],
+             1: ['gauss', 'bimodal']}
+    pt_threshold = 0.0245
+    simN = None 
+    simA = None 
+    
+xlim = [0.0, 1.1]
+ylim = [1.1, 2.5]
+cmap = 'turbo'
 
 # %% functions
 # fitting distributions
@@ -41,6 +66,22 @@ def gauss(x, mu, sigma, A):
 
 def bimodal(x, mu0, sigma0, A0, mu1, sigma1, A1):
     return gauss(x, mu0, sigma0, A0)+gauss(x, mu1, sigma1, A1)
+
+class logger():
+    def __init__(self, fout):
+        self.fout = fout 
+        self.fh = open(fout, 'w')
+        self.fh.close() 
+        
+    def log(self,x):
+        # log outputs 
+        self.fh = open(self.fout, 'a')
+        self.fh.write(x + '\n')
+        self.close()
+        print(x)
+        
+    def close(self):
+        self.fh.close() 
 
 # class to fit a distribution
 class distribution():
@@ -111,28 +152,53 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, trans=False):
     ax_histy.tick_params(axis="y", labelleft=False)
 
     if trans:
-        color = (0, 0, 1, 0.5)
+        color = (0.2, 0.2, 0.2, 0.2)
     else:
-        color = (0, 0, 1, 1)
+        color = (0.0, 0.0, 1.0, 1.0)
 
-    ax_histx.hist(x, bins=100, density=True, color=color)
+    ax_histx.hist(x, bins=100, density=True, color=color, edgecolor=color)
     ax_histy.hist(y, orientation='horizontal', bins=100, density=True,
-                  color=color)
-
-# fit testing
-# data = np.concatenate([np.random.normal(5,5,10000),np.random.normal(-10,5,5000)])
-# fig, ax = plt.subplots()
-# D = distribution(data,'bimodal')
-# D.bar_plot(ax)
-# D.fit()
-# D.plot(ax)
+                  color=color, edgecolor=color)
+    
+# filter dataframe to remove burn in 
+def get_burnin(df, pt_threshold):
+    idx = np.array([False]*len(df),dtype=bool)
+    chains = df.chain
+    # figure out if chain reached threshold for convergence  
+    chain_converged = []
+    for chain in np.unique(chains):
+        ii = chain == chains 
+        max_pt = df.Pt[ii].max()
+        idx_chain = np.array([False]*len(df[ii]),dtype=bool)
+        if max_pt > pt_threshold:
+            # need to find where threshold get crossed for the first time
+            c = 0 
+            for x in df.Pt[ii]:
+                if x >= pt_threshold:
+                    c += 1 
+                    break 
+            if c < 500: # cap c 
+                c = 500 
+            idx_chain[c:-1] = True 
+            chain_converged.append(chain)
+        idx[ii] = idx_chain
+            
+    return idx, chain_converged
+    
 
 # %% program
 fname = None
+fout = os.path.join(dirname,'stats.txt')
+log = logger(fout)
+
 for f in os.listdir(dirname):
     if f == 'mergedMCMClog.csv':
         fname = os.path.join(dirname, f)
         break
+    
+log.log('Fitting stats for McMC file: %s'%fname)
+log.log('_'*32)
+log.log(' ')
 
 df = pd.read_csv(fname)
 stable = df['Stable']
@@ -172,11 +238,58 @@ params = {}
 for i in range(nzones):
     params[i] = {}
     n = i+1
-    cmp = axs[i].tricontourf(df['alpha_%i' % n][stable],
+    xi = df['alpha_%i' % n][stable].values 
+    yi = df['vn_%i' % n][stable].values
+    
+    # create matrix of likelihoods and density 
+    binwidth = 0.025
+    xn = int((xlim[1] - xlim[0])/binwidth)
+    yn = int((ylim[1] - ylim[0])/binwidth)
+    xg = np.linspace(xlim[0], xlim[1], xn)
+    yg = np.linspace(ylim[0], ylim[1], yn)
+    xgg, ygg = np.meshgrid(xg,yg)
+    Lmat = np.zeros((yn-1, xn-1), dtype=float) # likelihood matrix 
+    Dmat = np.zeros((yn-1, xn-1), dtype=int) # density matrix
+    for ii in range(xgg.shape[0]-1):
+        for jj in range(ygg.shape[1]-1):
+            idx = (xi >= xgg[ii,jj]) & (xi < xgg[ii+1,jj+1]) & (yi >= ygg[ii,jj]) & (yi < ygg[ii+1,jj+1])
+            A = df['Pt'][stable][idx]
+            if len(A) > 0: 
+                Lmat[ii,jj] = np.max(A)
+                Dmat[ii,jj] = len(A)
+            else:
+                Lmat[ii,jj] = np.nan
+                Dmat[ii,jj] = 0
+                
+    if contour: 
+        cmp = axs[i].tricontourf(df['alpha_%i' % n][stable],
+                                 df['vn_%i' % n][stable],
+                                 df['Pt'][stable])
+    elif style:
+        vmin = np.min(df['Pt'][stable])
+        vmax = np.max(df['Pt'][stable])
+
+        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
                              df['vn_%i' % n][stable],
-                             df['Pt'][stable])
+                             c = df['Pt'][stable],
+                             marker='.',cmap=cmap,
+                             vmin=vmin,vmax=vmax)
+        
+        axs[i].pcolor(xgg,ygg,Lmat,cmap=cmap, alpha = 0.75, 
+                      vmin=vmin,vmax=vmax)
+
+    else: 
+        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
+                             df['vn_%i' % n][stable],
+                             c = df['Pt'][stable],
+                             marker='.')
+    if synth:
+        axs[i].scatter(simA[i], simN[i], c='r', marker='+',s=30)
+        
     axs[i].set_xlabel('Alpha (1/m)')
     axs[i].set_ylabel('N (-)')
+    axs[i].set_xlim(xlim)
+    axs[i].set_ylim(ylim)
     if i == 0:
         cbar = plt.colorbar(cmp, ax=cax, location="bottom")
         cbar.set_label('Normalised Likelihood')
@@ -184,29 +297,34 @@ for i in range(nzones):
     x = df['alpha_%i' % n][stable]
     y = df['vn_%i' % n][stable]
     scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i], True)
+    
+    # filter out the burnin 
+    # idx = df['Pt'] > pt_threshold
+    idx, chain_converged = get_burnin(df[stable],pt_threshold)
+    
     # add histograms used for fitting
-    idx = df['Pt'] > pt_threshold
     x = df['alpha_%i' % n][stable][idx]
     y = df['vn_%i' % n][stable][idx]
+    snormx_coef = shapiro(x).statistic
+    snormy_coef = shapiro(y).statistic
     distx = distribution(x, dists[i][0], 100)
     disty = distribution(y, dists[i][1], 100)
     scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i])
     # fit a histogram (to the better fitting selections)
     try:
         px = distx.fit()
-
         # following code plots the fit on the histograms
         lx = np.linspace(min(x), max(x), 100)
         distx.plot(axs['hist_x%i' % i], 'r')
     except:
-        print('Couldnt find optimal parameters for zone %i alpha'%n)
+        log.log('Couldnt find optimal parameters for zone %i alpha'%n)
         px = np.full(6,np.nan)
     try:
         py = disty.fit()
         ly = np.linspace(min(y), max(y), 100)    
         disty.plot(axs['hist_y%i' % i], 'r', ydom=True)
     except:
-        print('Couldnt find optimal parameters for zone %i N'%n)
+        log.log('Couldnt find optimal parameters for zone %i N'%n)
         py = np.full(6,np.nan)
         
     params[i]['alpha'] = px[0]
@@ -214,18 +332,21 @@ for i in range(nzones):
     params[i]['n'] = py[0]
     params[i]['n_std'] = py[1]
 
-    print('Fitting statistics for zone %i:' % n)
+    log.log('Fitting statistics for zone %i:' % n)
     if dists[i][0] == 'bimodal':
-        print('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
-        print('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
+        log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
+        log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
     else:
-        print('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
+        log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
+    log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
+    
     if dists[i][1] == 'bimodal':
-        print('N 1: %f +/- %f (-)' % (py[0], py[1]))
-        print('N 2: %f +/- %f (-)' % (py[3], py[4]))
+        log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
+        log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
     else:
-        print('N : %f +/- %f (-)' % (py[0], py[1]))
-    print('\n')
+        log.log('N : %f +/- %f (-)' % (py[0], py[1]))
+    log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
+    log.log(' ')
     nsample = len(df['alpha_%i' % n][stable][idx])
     
     figure_file = os.path.join(dirname, 'mcmc_figure_zone%i.png' % i)
@@ -233,31 +354,34 @@ for i in range(nzones):
         figs[i].savefig(figure_file)
         cfig.savefig(os.path.join(dirname, 'colorbar.png'))
 
-print('Nsample = %i' % nsample)
+# save statistics to file 
+log.log('Nsample = %i' % nsample)
 
 for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt'] > 0)
     color = (0.2, 0.2, 0.2, 0.5)
-    for i in range(nzones):
-        n = i+1
-        x = df['alpha_%i' % n][idx]
-        y = df['vn_%i' % n][idx]
-        axs[i].plot(x, y, color=color)
-    # if chain == 0:
+    # for i in range(nzones):
+    #     n = i+1
+    #     x = df['alpha_%i' % n][idx]
+    #     y = df['vn_%i' % n][idx]
+    axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx], 
+                     alpha = 0.5, label='chain{:0>2d}'.format(chain))
 
-    axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx])
-
-for i in range(nzones):
-    figure_file_wpaths = os.path.join(
-        dirname, 'mcmc_figure_zone%i_wpaths.png' % i)
-    if savfig:
-        figs[i].savefig(figure_file_wpaths)
+axs[nzones].set_xlim([min(df.run),max(df.run)])
+axs[nzones].legend(bbox_to_anchor=(1.05, 1.05))
+figs[nzones].set_tight_layout(True)
+figs[nzones].set_size_inches([14,6])
+if savfig:
+    figure_file = os.path.join(dirname, 'liklehood_track.png')
+    figs[nzones].savefig(figure_file)
 
 best_model_idx = np.argmax(df['Pt'])
 for i in range(nzones):
     n = i+1
     model = [df['alpha_%i' % n][best_model_idx],
              df['vn_%i' % n][best_model_idx]]
-    print('Best fit for zone %i' % n)
-    print('Alpha : %f (1/m)' % (model[0]))
-    print('N : %f (-)' % (model[1]))
+    log.log('Best fit for zone %i' % n)
+    log.log('Alpha : %f (1/m)' % (model[0]))
+    log.log('N : %f (-)' % (model[1]))
+log.log('Chains converged: %i'%len(chain_converged))
+

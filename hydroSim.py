@@ -38,13 +38,13 @@ if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroSim')
+sim_dir = os.path.join(model_dir,'HydroSim1')
 datadir = os.path.join(sim_dir,'SimData')
 for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
         os.mkdir(d)
 
-model_res = True  
+model_res = True 
 
 #%% load in the data 
 elec = ci.HH_getElec()
@@ -125,15 +125,13 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #%% create materials 
 # SSF properties from mcmc search 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=0.41,vn=1.17,name='STAITHES')
-SSF = material(Ksat=0.64,theta_res=0.1,theta_sat=0.48,
-                alpha=0.1,vn=1.43,name='WHITBY')
+                alpha=0.24,vn=1.30,name='STAITHES')
 # SSF properties from curve fitting 
 # SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
 #                 alpha=0.9,vn=1.1,name='STAITHES')
 # WMF properties from mcmc search 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-                alpha=0.097,vn=1.61,name='WHITBY')
+                alpha=0.11,vn=1.64,name='WHITBY')
 # wmf properties from curve fitting 
 # WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
 #                 alpha=0.08,vn=1.25,name='WHITBY')
@@ -308,3 +306,8 @@ if model_res:
 print('Setup time : %f'%setup_time)
 print('Hydrological model runtime: %f'%hydro_run_time)
 print('Resistivity modelling runtime: %f'%res_run_time)
+
+#%% save dataframes for fitting statistics 
+
+data_store[0].to_csv(os.path.join(sim_dir,'sim_seq.csv'))
+data_seq.to_csv(os.path.join(sim_dir,'meas_seq.csv'))

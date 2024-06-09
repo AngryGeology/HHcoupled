@@ -177,13 +177,40 @@ def temp_uncorrect(res0,depth,day, tc=-2,Tstd=20):
     rhs = 1 + ((tc/100)*(Tstd-Tmdl))
     return res0/rhs 
 
-def temp_correct(doy,depth,Res,
-                 c=-2.0,
-                 TCor  = 20.0,      # to correct to assumed laboratory temperature
-                 Tmean = 10.029,
-                 dT = 15.54,
-                 d = 2.264,
-                 phi = -1.907):
+def temp_correct(res1,depth,day, tc=-2,Tstd=20):
+    """
+    Put field resistivity to a standard lab derived resistivity. 
+
+    Parameters
+    ----------
+    res0 : nd array 
+        DESCRIPTION.
+    depth : float 
+        DESCRIPTION.
+    day : float, int 
+        DESCRIPTION.
+    tc : float, int, optional
+        DESCRIPTION. The default is -2.
+    Tstd : float, int, optional
+        DESCRIPTION. The default is 20.
+
+    Returns
+    -------
+    Rf: nd array 
+        Uncorrected resistivity. 
+
+    """
+    Tmdl = temp_model(day, depth)
+    rhs = 1 + ((tc/100)*(Tstd-Tmdl))
+    return res1*rhs 
+
+def temp_correct_old(doy,depth,Res,
+                    c=-2.0,
+                    TCor  = 20.0,      # to correct to assumed laboratory temperature
+                    Tmean = 10.029,
+                    dT = 15.54,
+                    d = 2.264,
+                    phi = -1.907):
     """Temperature correct timelapse resistivity volumes. Code has been converted
     from Ulhemann's matlab code. 
     

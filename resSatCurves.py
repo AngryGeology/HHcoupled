@@ -9,8 +9,7 @@ fitting in terms of saturation and resistivity
 """
 
 # import modules and relevant data
-import os
-import sys
+import os, sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -43,9 +42,9 @@ master['sat'] = sat
 fig, ax = plt.subplots()
 
 uni_names = np.unique(master["Sample"].values)
-# unwanted = ['HH01- 4.5V', #'HH01-1.5H',
-#             "HH02 - 3.1V", "HH02 - 6.2V"]
-unwanted = ['HH01- 4.5V'] 
+unwanted = ['HH01- 4.5V', #'HH01-1.5H',
+            "HH02 - 3.1V", "HH02 - 6.2V"]
+# unwanted = ['HH01- 4.5V'] 
 
 cols = [(0.7, 0.7, 0.5),
         (0.2, 0.2, 0.2),
@@ -62,6 +61,7 @@ for name in uni_names:
     # choose colour of marker, WMF, ssf, wmf disturbed
     col = cols[0]
     label = 'SSF data'
+    mark = '1'
 
     if 'HH02' in name:
         col = cols[1]
@@ -69,21 +69,22 @@ for name in uni_names:
         # label = 'WMF - I'
         if master['depth'][idx].values[-1] < 1.5:
             col = cols[2]
+            mark = '.' 
             label = 'WMF data (shallow)'
             
     if 'HH01' in name:
         col = cols[0]
-        label = 'SSF data (deep)' 
+        label = 'SSF data (vertical)' 
         # label = 'WMF - I'
         if master['depth'][idx].values[-1] < 1.5:
             col = cols[0]
             label = 'SSF data (shallow)'
 
     # mark off if vertical or horizontal - chooses shape of marker
-    mark = '1'
     if 'H' == name[-1]:
-        mark = '+'
-        # label += 'H'
+        if mark != '.': #ignore if set to '.' already 
+            mark = '+'
+        label = label.replace('vertical','horizontal')
     else:
         pass 
         # label += 'V'
@@ -218,11 +219,11 @@ for i, name in enumerate(fit_names):
 
         # uncomment to write to file
 
-        fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
-        fh.write('a: %f\n'%a)
-        fh.write('k: %f\n'%k)
-        fh.write('c: %f\n'%c)
-        fh.close()
+        # fh = open(os.path.join('petroFit',fit_names[i].replace(' ','_'))+'.txt','w')
+        # fh.write('a: %f\n'%a)
+        # fh.write('k: %f\n'%k)
+        # fh.write('c: %f\n'%c)
+        # fh.close()
 
         mdl = powerLaw(X, a, k, c)
         mdlRt = powerLaw(mdlSat, a, k, c)
@@ -257,4 +258,5 @@ ax.grid(True, 'major', linestyle='--',
 ax.grid(True, 'minor', linestyle=':', 
         color=(0.5, 0.5, 0.7, 0.3))
 
-fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/Fig03.png',dpi=600)## uncomment to save figure
+fig.set_tight_layout(True)
+# fig.savefig('/home/jimmy/phd/Hollin_Hill/papers/paper3/figs/tosubmission/fig02.jpg',dpi=600)## uncomment to save figure

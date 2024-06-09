@@ -104,7 +104,7 @@ def log2csv(fname):
             
     return data 
 
-entries = os.listdir(dirname)
+entries = sorted(os.listdir(dirname))
 chain_dirs = []
 chain_ids = []
 for e in entries: 
