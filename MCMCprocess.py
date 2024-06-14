@@ -18,7 +18,7 @@ plt.close('all')
 # %% main program parameters
 # get mcmc result file
 
-synth = True 
+synth = False 
 savfig = True 
 contour = False 
 style = True 
