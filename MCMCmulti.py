@@ -36,12 +36,12 @@ if 'win' in sys.platform.lower():
 #    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
     
-nchain = 12
+nchain = 2
 ncpu = 16
 nstep = 1001
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroMCMCmulti')
+sim_dir = os.path.join(model_dir,'HydroMCMCmultiExtra')
 for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
