@@ -36,12 +36,12 @@ if 'win' in sys.platform.lower():
 #    exec_loc = r'C:/Users/boydj1/Software/SUTRA/bin/sutra.exe'
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
     
-nchain = 2
+nchain = 12
 ncpu = 16
 nstep = 1001
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroMCMCmultiExtra')
+sim_dir = os.path.join(model_dir,'HydroMCMCmultiV2')
 for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
@@ -94,12 +94,12 @@ tdx = sum(dx)
 fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc, len(source_node), ntimes)
 
 #%% create materials 
-SSF = material(Ksat=0.144e0,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.2,name='STAITHES')
+SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
+               alpha=0.13,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.012,vn=1.44,name='WHITBY')
-RMF = material(Ksat=0.13,theta_res=0.1,theta_sat=0.48,
-               alpha=0.0126,vn=1.44,name='REDCAR')
+RMF = material(Ksat=0.64,theta_res=0.1,theta_sat=0.48,
+               alpha=0.013,vn=1.44,name='REDCAR')
 
 SSF.setPetroFuncs(ssf_petro_sat,ssf_petro_sat)
 WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
@@ -110,14 +110,16 @@ alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT
 alpha_WMF = [0.001, 0.02, 2.0] 
 vn_SSF = [0.9, 0.02, 2.5]
 vn_WMF = [1.1, 0.02, 2.5]
-K_SSF = [0.14,0.1,0.64]
-K_WMF = [0.14,0.1,0.64]
+K_SSF = [0.064,0.1,6.4]
+K_WMF = [0.0013,0.1,0.13]
 
-ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
-wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
+ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF, 'K':K_SSF}
+wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF, 'K':K_WMF}
+ssf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
+wmf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
 
-SSF.setMCparam(ssf_param)
-WMF.setMCparam(wmf_param)
+SSF.setMCparam(ssf_param, ssf_pdist)
+WMF.setMCparam(wmf_param, wmf_pdist)
 
 #%% create handler for each mcmc chain 
 def run(i):

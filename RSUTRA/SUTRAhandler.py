@@ -2936,7 +2936,7 @@ class handler:
         # continue to proposing new models in the mcmc chain. 
         logger('Generating initial model',logf)
         c = 0 # counter for trial model, ensures we dont get stuck in a infinite loop 
-        maxc = 100
+        maxc = 1000
         # run the first model 
         while not stable: # run until stable (or until max counter is reached)
             # failsafe statement 
