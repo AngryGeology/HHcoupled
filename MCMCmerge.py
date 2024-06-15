@@ -7,7 +7,7 @@ Merge MCMC logs
 import os 
 import pandas as pd 
 
-dirname = 'Models/HydroMCMCmulti'
+dirname = 'Models/HydroMCMCmultiV2'
 # dirname = 'SyntheticStudy/Models/MCMC'
 
 def log2csv(fname): 

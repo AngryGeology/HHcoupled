@@ -17,24 +17,13 @@ plt.close('all')
 
 # %% main program parameters
 # get mcmc result file
-dirname = 'Models/HydroMCMCmulti'
-# dirname = 'Models/HydroMCMC'
-# dirname = 'SyntheticStudy/Models/MCMC/'
-# dirname = 'SyntheticStudy/Models/MCMC(no_error)/'
-dists = {0: ['gauss', 'bimodal'],
-          1: ['bimodal', 'bimodal']}
-
-# dists = {0: ['gauss', 'gauss'],
-#          1: ['gauss', 'gauss']}
-pt_threshold = 0.022
-
-# pt_threshold = 0.55
 
 synth = False 
 savfig = True 
 contour = False 
 style = True 
 nzones = 2
+nparam = 3 
 
 if synth:
     dirname = 'SyntheticStudy/Models/MCMC/'    
@@ -44,7 +33,7 @@ if synth:
     simN = {0:1.9, 1:1.5}
     simA = {0:0.2, 1:0.1}
 else:
-    dirname = 'Models/HydroMCMCmulti'
+    dirname = 'Models/HydroMCMCmultiV2'
     # dirname = 'Models/HydroMCMC'
     dists = {0: ['bimodal', 'bimodal'],
              1: ['gauss', 'bimodal']}
@@ -56,6 +45,10 @@ xlim = [0.0, 1.1]
 ylim = [1.1, 2.5]
 cmap = 'turbo'
 
+convert_cons= {'u':1.307e-3, #kg/ms  
+               'p':1000, #kg/ms^3 
+               'g':9.81} #m/s^2 
+
 # %% functions
 # fitting distributions
 def gauss(x, mu, sigma, A):
@@ -66,6 +59,23 @@ def gauss(x, mu, sigma, A):
 
 def bimodal(x, mu0, sigma0, A0, mu1, sigma1, A1):
     return gauss(x, mu0, sigma0, A0)+gauss(x, mu1, sigma1, A1)
+
+def convertk2K(k, time_unit='day', space_unit='m'):
+    # convert hydrualic conductivity (m/day) to permeability (m^2)
+    # the following values are for water 
+    u = convert_cons['u']
+    p = convert_cons['p']
+    g = convert_cons['g']
+    secinday = 84*60*60
+    
+    # 
+    # k = self.K/secinday 
+    # perm = (k*u)/(p*g)
+    K = (k*p*g)/u 
+    # convert K from m/s to m/day 
+    K *= secinday 
+    
+    return K 
 
 class logger():
     def __init__(self, fout):
@@ -216,7 +226,7 @@ rect_histy = [left + width + spacing, bottom, 0.2, height]
 # start with a square Figure
 figs = {}
 axs = {}
-for i in range(nzones):
+for i in range(nparam):
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_axes(rect_scatter)
     ax_histx = fig.add_axes(rect_histx, sharex=ax)
@@ -228,9 +238,9 @@ for i in range(nzones):
     axs['hist_x%i' % i] = ax_histx
     axs['hist_y%i' % i] = ax_histy
 
-figs[nzones], axs[nzones] = plt.subplots()
-axs[nzones].set_ylabel('Normalised liklehood')
-axs[nzones].set_xlabel('Run')
+figs[nparam], axs[nparam] = plt.subplots()
+axs[nparam].set_ylabel('Normalised liklehood')
+axs[nparam].set_xlabel('Run')
 cfig, cax = plt.subplots()
 
 # plot liklihood data and paths
@@ -240,6 +250,7 @@ for i in range(nzones):
     n = i+1
     xi = df['alpha_%i' % n][stable].values 
     yi = df['vn_%i' % n][stable].values
+    zi = df['k_%i'%n][stable].values
     
     # create matrix of likelihoods and density 
     binwidth = 0.025
@@ -385,3 +396,31 @@ for i in range(nzones):
     log.log('N : %f (-)' % (model[1]))
 log.log('Chains converged: %i'%len(chain_converged))
 
+#%% plot K 
+fig, ax = plt.subplots()
+
+ax.scatter(df['k_%i'%1].values, df['k_%i'%2].values, c=df['Pt'])
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel('k - SSF (1/m^2)')
+ax.set_ylabel('k - WMF (1/m^2)')
+
+
+fig, ax = plt.subplots()
+
+ax.scatter(df['vn_%i'%1].values, df['vn_%i'%2].values, c=df['Pt'])
+
+# ax.set_xscale('log')
+# ax.set_yscale('log')
+ax.set_xlabel('vn - SSF')
+ax.set_ylabel('vn - WMF')
+
+fig, ax = plt.subplots()
+
+ax.scatter(df['alpha_%i'%1].values, df['alpha_%i'%2].values, c=df['Pt'])
+
+# ax.set_xscale('log')
+# ax.set_yscale('log')
+ax.set_xlabel('alpha - SSF')
+ax.set_ylabel('alpha - WMF')
