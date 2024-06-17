@@ -38,7 +38,7 @@ if 'win' in sys.platform.lower():
     
 nchain = 12
 ncpu = 16
-nstep = 101
+nstep = 51
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'_HydroMCMCmultiV2')
