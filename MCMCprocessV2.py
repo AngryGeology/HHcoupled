@@ -33,7 +33,7 @@ if synth:
     simN = {0:1.9, 1:1.5}
     simA = {0:0.2, 1:0.1}
 else:
-    dirname = 'Models/HydroMCMCmultiV2'
+    dirname = 'Models/_HydroMCMCmultiV2'
     # dirname = 'Models/HydroMCMC'
     dists = {0: ['bimodal', 'bimodal'],
              1: ['gauss', 'bimodal']}

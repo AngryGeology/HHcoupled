@@ -333,7 +333,7 @@ def stepWalk(iarg, size, dist='normal'):
     iarg : float
         Starting value 
     size : float 
-        Size of normal step 
+        Size of normal step (if lognormal then size is in terms of log space)
     dist : str, optional
         Type of scale, use lognormal to walk randomly in log space. 
         The default is 'normal'.
@@ -353,7 +353,7 @@ def stepWalk(iarg, size, dist='normal'):
     if dist == 'normal':
         return iarg + step # do random walk 
     elif dist == 'lognormal':
-        u = np.log10(iarg)+ step 
+        u = np.log10(iarg) + step 
         return 10**u 
     else: # shouldnt happen 
         raise Exception('Distribution type is unknown!')
@@ -2927,12 +2927,20 @@ class handler:
                 pkeys.append(key)
                 pzones.append(zone)
                 nparam += 1 
+                    
                 
         # get starting place and set starting parameters for each mcmc chain 
         logger('______Starting MCMC search_______',logf)
         self.nruns = 0 # number of model runs 
         naccept = 0 # number of accepted models 
         stable = False # flag if initial model is stable, it must be in order to 
+        
+        # log distributions 
+        logger('Parameters to be tested (and distributions):',logf)
+        for zone in range(self.nzones):# setup columns for storing model parameters in log 
+            m = self.materials[zone]
+            for key in m.MCpdist.keys():
+                logger('\t%s_%i = %s'%(key, zone+1, m.MCpdist[key]), logf)
         # continue to proposing new models in the mcmc chain. 
         logger('Generating initial model',logf)
         c = 0 # counter for trial model, ensures we dont get stuck in a infinite loop 
@@ -3106,7 +3114,7 @@ class handler:
                 key = pkeys[j]
                 zone = pzones[j] # add one to get index starting at 1 
                 self.chainlog['%s_%i'%(key,zone+1)][i] = trial[key][zone]
-                logoutput += '%s_%i = %f\t'%(key,zone,trial[key][zone])
+                logoutput += '%s_%i = %e\t'%(key,zone+1,trial[key][zone])
             logger(logoutput,logf) 
                 
             # decide if to accept model 
