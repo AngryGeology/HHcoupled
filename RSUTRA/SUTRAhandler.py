@@ -2745,18 +2745,18 @@ class handler:
                 v0 = m.MCparam['k'][0]
                 v1 = m.MCparam['k'][2]
                 size = m.MCparam['k'][1]
-                logger('mcmc proposer information for k_%i:'%(zone+1),self.logf) 
+                # logger('mcmc proposer information for k_%i:'%(zone+1),self.logf) 
                 if start: # if starting run then return random value 
                     pdist = 'uniform'
                     if 'log' in m.MCpdist['k']:
                         pdist = 'loguniform'
                     v = giveValues(v0, v1, 1, pdist)[0]
-                    logger('Input into give values',self.logf)
-                    logger('%e, %e, %i, %s'%(v0,v1,1,pdist),self.logf)
+                    # logger('Input into give values',self.logf)
+                    # logger('%e, %e, %i, %s'%(v0,v1,1,pdist),self.logf)
                 else: 
                     v = stepWalk(ipargs['k'][zone], size, m.MCpdist['k'])
-                    logger('Input into step walk',self.logf)
-                    logger('%e, %f, %s'%(ipargs['k'][zone],size,m.MCpdist['k']),self.logf)
+                    # logger('Input into step walk',self.logf)
+                    # logger('%e, %f, %s'%(ipargs['k'][zone],size,m.MCpdist['k']),self.logf)
                 self.mesh.ptdf.loc[zidx,'perm'] = v 
                 pargs['k'][zone] = v 
                 inrange[zone] = checkRange(v, v0, v1)
