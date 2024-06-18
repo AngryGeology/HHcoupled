@@ -38,7 +38,7 @@ if 'win' in sys.platform.lower():
     
 nchain = 12
 ncpu = 16
-nstep = 51
+nstep = 101
 
 model_dir = 'Models'
 sim_dir = os.path.join(model_dir,'_HydroMCMCmultiV2')
@@ -110,8 +110,8 @@ alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT
 alpha_WMF = [0.001, 0.02, 2.0] 
 vn_SSF = [0.9, 0.02, 2.5]
 vn_WMF = [1.1, 0.02, 2.5]
-K_SSF = [0.064,5.0,6.4]
-K_WMF = [0.0013,5.0,0.13]
+K_SSF = [0.064,0.1,6.4]
+K_WMF = [0.0013,0.1,0.13]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF, 'K':K_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF, 'K':K_WMF}
