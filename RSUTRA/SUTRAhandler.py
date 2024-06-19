@@ -811,20 +811,15 @@ class material:
         if self.perm is None: 
             self.convertk2K()
     
-    def convertk2K(self,time_unit='day', space_unit='m', return_value = False):
+    def convertk2K(self, return_value = False):
         """
-        Convert hydrualic conductivity into permeability (todo)
-
-        Parameters
-        ----------
-        time_unit : TYPE
-            DESCRIPTION.
-        space_unit : TYPE
-            DESCRIPTION.
+        Convert hydrualic conductivity into permeability. Hydrualic conductivity 
+        must be given in terms of m/day 
 
         Returns
         -------
-        None.
+        k: float
+            Permeability in m^2 
 
         """
         # convert hydrualic conductivity (m/day) to permeability (m^2)
@@ -834,13 +829,14 @@ class material:
         g = self.convert_cons['g']
         
         # convert K to m/s from m/day 
-        k = self.K/secinday 
-        perm = (k*u)/(p*g)
+        K = self.K/secinday 
+        perm = (K*u)/(p*g)
         self.perm = perm 
         
         if 'K' in self.MCparam.keys(): 
-            ks = self.MCparam['K']
-            perms = [(_k*u)/(p*g) for _k in ks]
+            Km = self.MCparam['K']
+            Ks = [_K/secinday for _K in Km] # convert to m/s 
+            perms = [(_K*u)/(p*g) for _K in Ks]
             if 'K' in self.MCpdist.keys():
                 pdist = self.MCpdist['K']
                 del self.MCpdist['K']
