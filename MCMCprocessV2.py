@@ -420,7 +420,7 @@ fig, ax = plt.subplots()
 
 ax.scatter(df['alpha_%i'%1].values, df['alpha_%i'%2].values, c=df['Pt'])
 
-# ax.set_xscale('log')
-# ax.set_yscale('log')
+ax.set_xscale('log')
+ax.set_yscale('log')
 ax.set_xlabel('alpha - SSF')
 ax.set_ylabel('alpha - WMF')

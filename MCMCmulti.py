@@ -106,17 +106,17 @@ WMF.setPetroFuncs(wmf_petro_sat_shallow, wmf_petro_sat)
 RMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.02, 2.0] 
-vn_SSF = [0.9, 0.02, 2.5]
-vn_WMF = [1.1, 0.02, 2.5]
+alpha_SSF = [0.002, 0.1, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.002, 0.1, 2.0] 
+vn_SSF = [0.9, 0.1, 2.5]
+vn_WMF = [1.1, 0.1, 2.5]
 K_SSF = [0.064,0.1,6.4]
 K_WMF = [0.0013,0.1,0.13]
 
 ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF, 'K':K_SSF}
 wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF, 'K':K_WMF}
-ssf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
-wmf_pdist = {'alpha':'normal','vn':'normal', 'K':'lognormal'}
+ssf_pdist = {'alpha':'lognormal','vn':'normal', 'K':'lognormal'}
+wmf_pdist = {'alpha':'lognormal','vn':'normal', 'K':'lognormal'}
 
 SSF.setMCparam(ssf_param, ssf_pdist)
 WMF.setMCparam(wmf_param, wmf_pdist)
