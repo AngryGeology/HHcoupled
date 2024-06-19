@@ -60,13 +60,13 @@ def gauss(x, mu, sigma, A):
 def bimodal(x, mu0, sigma0, A0, mu1, sigma1, A1):
     return gauss(x, mu0, sigma0, A0)+gauss(x, mu1, sigma1, A1)
 
-def convertk2K(k, time_unit='day', space_unit='m'):
+def convertk2K(k):
     # convert hydrualic conductivity (m/day) to permeability (m^2)
     # the following values are for water 
     u = convert_cons['u']
     p = convert_cons['p']
     g = convert_cons['g']
-    secinday = 84*60*60
+    secinday = 24*60*60
     
     # 
     # k = self.K/secinday 
@@ -76,6 +76,21 @@ def convertk2K(k, time_unit='day', space_unit='m'):
     K *= secinday 
     
     return K 
+
+
+def convertK2k(K):
+    # convert hydrualic conductivity (m/day) to permeability (m^2)
+    # the following values are for water 
+    u = convert_cons['u']
+    p = convert_cons['p']
+    g = convert_cons['g']
+    secinday = 24*60*60
+    
+    # convert K from m/day to m/s
+    k = K/secinday 
+    k = (k*u)/(p*g) 
+    
+    return k
 
 class logger():
     def __init__(self, fout):
