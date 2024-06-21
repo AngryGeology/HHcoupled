@@ -29,7 +29,8 @@ nparam = 3
 if synth:
     dirname = 'SyntheticStudy/Models/MCMC/'    
     dists = {0: ['gauss', 'bimodal'],
-              1: ['gauss', 'bimodal']}
+              1: ['gauss', 'bimodal'],
+              2: ['guass', 'guass']}
     pt_threshold = 0.6
     simN = {0:1.9, 1:1.5}
     simA = {0:0.2, 1:0.1}
@@ -39,7 +40,8 @@ else:
     dirname = 'Models/HydroMCMCmultiV2'
     # dirname = 'Models/HydroMCMC'
     dists = {0: ['bimodal', 'bimodal'],
-             1: ['gauss', 'guass']}
+             1: ['gauss', 'guass'],
+             2: ['bimodal', 'bimodal']}
     pt_threshold = 0.0225
     simN = None 
     simA = None 
@@ -445,30 +447,30 @@ for i in range(nzones):
 # log.log('Chains converged: %i'%len(chain_converged))
 
 #%% 2d plots for testing 
-# fig, ax = plt.subplots()
+fig, ax = plt.subplots()
 
-# ax.scatter(df['k_%i'%1].values, df['k_%i'%2].values, c=df['Pt'])
+ax.scatter(df['k_%i'%1][stable].values, df['k_%i'%2][stable].values, c=df['Pt'][stable])
 
-# ax.set_xscale('log')
-# ax.set_yscale('log')
-# ax.set_xlabel('k - SSF (1/m^2)')
-# ax.set_ylabel('k - WMF (1/m^2)')
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel('k - SSF (1/m^2)')
+ax.set_ylabel('k - WMF (1/m^2)')
 
 
-# fig, ax = plt.subplots()
+fig, ax = plt.subplots()
 
-# ax.scatter(df['vn_%i'%1].values, df['vn_%i'%2].values, c=df['Pt'])
-
-# # ax.set_xscale('log')
-# # ax.set_yscale('log')
-# ax.set_xlabel('vn - SSF')
-# ax.set_ylabel('vn - WMF')
-
-# fig, ax = plt.subplots()
-
-# ax.scatter(df['alpha_%i'%1].values, df['alpha_%i'%2].values, c=df['Pt'])
+ax.scatter(df['vn_%i'%1][stable].values, df['vn_%i'%2][stable].values, c=df['Pt'][stable])
 
 # ax.set_xscale('log')
 # ax.set_yscale('log')
-# ax.set_xlabel('alpha - SSF')
-# ax.set_ylabel('alpha - WMF')
+ax.set_xlabel('vn - SSF')
+ax.set_ylabel('vn - WMF')
+
+fig, ax = plt.subplots()
+
+ax.scatter(df['alpha_%i'%1][stable].values, df['alpha_%i'%2][stable].values, c=df['Pt'][stable])
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_xlabel('alpha - SSF')
+ax.set_ylabel('alpha - WMF')
