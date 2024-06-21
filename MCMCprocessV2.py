@@ -8,8 +8,9 @@ Plot the results of an MCMC chain
 import os
 import numpy as np
 import pandas as pd
-import seaborn as sns 
+# import seaborn as sns 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker 
 from scipy.optimize import curve_fit
 from scipy.stats import shapiro
 plt.close('all')
@@ -32,16 +33,20 @@ if synth:
     pt_threshold = 0.6
     simN = {0:1.9, 1:1.5}
     simA = {0:0.2, 1:0.1}
+    simK = {0:0.14, 1:0.0013}
+    zone_names = ['Sandstone','Mudstone']
 else:
-    dirname = 'Models/_HydroMCMCmultiV2'
+    dirname = 'Models/HydroMCMCmultiV2'
     # dirname = 'Models/HydroMCMC'
     dists = {0: ['bimodal', 'bimodal'],
-             1: ['gauss', 'bimodal']}
-    pt_threshold = 0.0245
+             1: ['gauss', 'guass']}
+    pt_threshold = 0.0225
     simN = None 
     simA = None 
+    simK = None
+    zone_names = ['SSF','WMF']
     
-xlim = [0.0, 1.1]
+xlim = [0.001, 1.1]
 ylim = [1.1, 2.5]
 cmap = 'turbo'
 
@@ -61,16 +66,13 @@ def bimodal(x, mu0, sigma0, A0, mu1, sigma1, A1):
     return gauss(x, mu0, sigma0, A0)+gauss(x, mu1, sigma1, A1)
 
 def convertk2K(k):
-    # convert hydrualic conductivity (m/day) to permeability (m^2)
+    # convert permeability (m^2) to hydrualic conductivity (m/day) 
     # the following values are for water 
     u = convert_cons['u']
     p = convert_cons['p']
     g = convert_cons['g']
     secinday = 24*60*60
     
-    # 
-    # k = self.K/secinday 
-    # perm = (k*u)/(p*g)
     K = (k*p*g)/u 
     # convert K from m/s to m/day 
     K *= secinday 
@@ -91,6 +93,12 @@ def convertK2k(K):
     k = (k*u)/(p*g) 
     
     return k
+
+def log_tick_formatter(val, pos=None):
+    return f"$10^{{{int(val)}}}$"
+
+def get_ilog_values(val):
+    return 10**val 
 
 class logger():
     def __init__(self, fout):
@@ -191,6 +199,7 @@ def get_burnin(df, pt_threshold):
     chains = df.chain
     # figure out if chain reached threshold for convergence  
     chain_converged = []
+
     for chain in np.unique(chains):
         ii = chain == chains 
         max_pt = df.Pt[ii].max()
@@ -199,11 +208,11 @@ def get_burnin(df, pt_threshold):
             # need to find where threshold get crossed for the first time
             c = 0 
             for x in df.Pt[ii]:
+                c += 1
                 if x >= pt_threshold:
-                    c += 1 
                     break 
-            if c < 500: # cap c 
-                c = 500 
+            if c < 250: # cap c 
+                c = 250 
             idx_chain[c:-1] = True 
             chain_converged.append(chain)
         idx[ii] = idx_chain
@@ -228,58 +237,85 @@ log.log(' ')
 df = pd.read_csv(fname)
 stable = df['Stable']
 
-# create figures
-# definitions for the axes
-left, width = 0.1, 0.65
-bottom, height = 0.1, 0.65
-spacing = 0.005
+## liklehood track 
+figl, axl = plt.subplots() 
+for chain in np.unique(df['chain']):
+    idx = (df['chain'] == chain) & (df['Pt'] > 0)
+    axl.plot(df['run'][stable][idx], df['Pt'][stable][idx], 
+              alpha = 0.5, label='chain{:0>2d}'.format(chain))
 
-rect_scatter = [left, bottom, width, height]
-rect_histx = [left, bottom + height + spacing, width, 0.2]
-rect_histy = [left + width + spacing, bottom, 0.2, height]
+#%% create figures
+fighi, axshi = plt.subplots(nrows=nparam, ncols=nzones) # --> will hold histogram plots 
+fig2d, axs2d = plt.subplots(nrows=1, ncols=nzones) # --> will hold 2d plots 
+fig3d, axs3d = plt.subplots(nrows=1, ncols=nzones) # --> will hold 3d plots 
 
-# start with a square Figure
-figs = {}
-axs = {}
-for i in range(nparam):
-    fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_axes(rect_scatter)
-    ax_histx = fig.add_axes(rect_histx, sharex=ax)
-    ax_histy = fig.add_axes(rect_histy, sharey=ax)
-    ax_histx.set_ylabel('Probability Density')
-    ax_histy.set_xlabel('Probability Density')
-    figs[i] = fig
-    axs[i] = ax
-    axs['hist_x%i' % i] = ax_histx
-    axs['hist_y%i' % i] = ax_histy
+# make 3d axis actually 3d 
+axs3d[0].remove()
+axs3d[1].remove()
+axs3d[0] = fig3d.add_subplot(1,nzones, 1, projection='3d')
+axs3d[1] = fig3d.add_subplot(1,nzones, 2, projection='3d')
 
-figs[nparam], axs[nparam] = plt.subplots()
-axs[nparam].set_ylabel('Normalised liklehood')
-axs[nparam].set_xlabel('Run')
-cfig, cax = plt.subplots()
+fighi.set_tight_layout(True)
+fig2d.set_tight_layout(True)
+fig3d.set_tight_layout(True)
+
+
+#%% main loop 
+
+# get burnin 
+idx, chain_converged = get_burnin(df[stable],pt_threshold)
 
 # plot liklihood data and paths
 params = {}
 for i in range(nzones):
+    print(i)
     params[i] = {}
     n = i+1
-    xi = df['alpha_%i' % n][stable].values 
-    yi = df['vn_%i' % n][stable].values
-    zi = df['k_%i'%n][stable].values
+    xi = df['alpha_%i'%n][stable].values 
+    yi = df['vn_%i'%n][stable].values
+    _zi = df['k_%i'%n][stable].values
+    zi = convertk2K(_zi) 
+    pi = df['Pt'][stable]
     
-    # create matrix of likelihoods and density 
+    logxi = np.log10(xi)
+    logzi = np.log10(zi)
+    
+    ## create 3D plots 
+    axs3d[i].scatter(logxi, yi, logzi, c=pi, cmap=cmap)
+    
+    axs3d[i].set_xlabel('Alpha (1/m)')
+    xlabel_pos = np.array([-3., -2., -1.,  0.])
+    xlabel_val = 10**xlabel_pos
+    axs3d[i].set_xticks(xlabel_pos, xlabel_val)
+    # axs3d[i].xaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+    # axs3d[i].xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    # axs3d[i].set_xscale('linear')
+    
+    axs3d[i].set_ylabel('N (-)')
+    # axs3d[i].set_yscale('log')
+    
+    axs3d[i].set_zlabel('K (m/day)')
+    zlabel_pos = np.array([ -2, -1.,  0., 1.0])
+    zlabel_val = 10**zlabel_pos
+    axs3d[i].set_zticks(zlabel_pos, zlabel_val)
+    # axs3d[i].zaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+    # axs3d[i].zaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    # axs3d[i].set_zscale('log')
+    
+    ## create matrix of likelihoods and density for better visualisation 
     binwidth = 0.025
     xn = int((xlim[1] - xlim[0])/binwidth)
     yn = int((ylim[1] - ylim[0])/binwidth)
-    xg = np.linspace(xlim[0], xlim[1], xn)
+    # xg = np.linspace(xlim[0], xlim[1], xn)
+    xg  = np.linspace(np.log10(xlim[0]), np.log10(xlim[1]), xn)
     yg = np.linspace(ylim[0], ylim[1], yn)
     xgg, ygg = np.meshgrid(xg,yg)
     Lmat = np.zeros((yn-1, xn-1), dtype=float) # likelihood matrix 
     Dmat = np.zeros((yn-1, xn-1), dtype=int) # density matrix
     for ii in range(xgg.shape[0]-1):
         for jj in range(ygg.shape[1]-1):
-            idx = (xi >= xgg[ii,jj]) & (xi < xgg[ii+1,jj+1]) & (yi >= ygg[ii,jj]) & (yi < ygg[ii+1,jj+1])
-            A = df['Pt'][stable][idx]
+            idx_gg = (logxi >= xgg[ii,jj]) & (logxi < xgg[ii+1,jj+1]) & (yi >= ygg[ii,jj]) & (yi < ygg[ii+1,jj+1])
+            A = pi[idx_gg]
             if len(A) > 0: 
                 Lmat[ii,jj] = np.max(A)
                 Dmat[ii,jj] = len(A)
@@ -287,155 +323,152 @@ for i in range(nzones):
                 Lmat[ii,jj] = np.nan
                 Dmat[ii,jj] = 0
                 
-    if contour: 
-        cmp = axs[i].tricontourf(df['alpha_%i' % n][stable],
-                                 df['vn_%i' % n][stable],
-                                 df['Pt'][stable])
-    elif style:
-        vmin = np.min(df['Pt'][stable])
-        vmax = np.max(df['Pt'][stable])
+    vmin = np.min(df['Pt'][stable])
+    vmax = np.max(df['Pt'][stable])
+    
+    cmp = axs2d[i].scatter(logxi, yi,
+                           c = df['Pt'][stable],
+                           marker='.',cmap=cmap,
+                           vmin=vmin,vmax=vmax)
+    
+    axs2d[i].pcolor(xgg,ygg,Lmat,cmap=cmap, alpha = 0.75, 
+                    vmin=vmin,vmax=vmax)
 
-        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
-                             df['vn_%i' % n][stable],
-                             c = df['Pt'][stable],
-                             marker='.',cmap=cmap,
-                             vmin=vmin,vmax=vmax)
-        
-        axs[i].pcolor(xgg,ygg,Lmat,cmap=cmap, alpha = 0.75, 
-                      vmin=vmin,vmax=vmax)
-
-    else: 
-        cmp = axs[i].scatter(df['alpha_%i' % n][stable],
-                             df['vn_%i' % n][stable],
-                             c = df['Pt'][stable],
-                             marker='.')
     if synth:
-        axs[i].scatter(simA[i], simN[i], c='r', marker='+',s=30)
+        axs2d[i].scatter(simA[i], simN[i], c='r', marker='+',s=30)
         
-    axs[i].set_xlabel('Alpha (1/m)')
-    axs[i].set_ylabel('N (-)')
-    axs[i].set_xlim(xlim)
-    axs[i].set_ylim(ylim)
-    if i == 0:
-        cbar = plt.colorbar(cmp, ax=cax, location="bottom")
-        cbar.set_label('Normalised Likelihood')
-    # add full histogram
-    x = df['alpha_%i' % n][stable]
-    y = df['vn_%i' % n][stable]
-    scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i], True)
-    
-    # filter out the burnin 
-    # idx = df['Pt'] > pt_threshold
-    idx, chain_converged = get_burnin(df[stable],pt_threshold)
-    
-    # add histograms used for fitting
-    x = df['alpha_%i' % n][stable][idx]
-    y = df['vn_%i' % n][stable][idx]
-    snormx_coef = shapiro(x).statistic
-    snormy_coef = shapiro(y).statistic
-    distx = distribution(x, dists[i][0], 100)
-    disty = distribution(y, dists[i][1], 100)
-    scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i])
-    # fit a histogram (to the better fitting selections)
-    try:
-        px = distx.fit()
-        # following code plots the fit on the histograms
-        lx = np.linspace(min(x), max(x), 100)
-        distx.plot(axs['hist_x%i' % i], 'r')
-    except:
-        log.log('Couldnt find optimal parameters for zone %i alpha'%n)
-        px = np.full(6,np.nan)
-    try:
-        py = disty.fit()
-        ly = np.linspace(min(y), max(y), 100)    
-        disty.plot(axs['hist_y%i' % i], 'r', ydom=True)
-    except:
-        log.log('Couldnt find optimal parameters for zone %i N'%n)
-        py = np.full(6,np.nan)
         
-    params[i]['alpha'] = px[0]
-    params[i]['alpha_std'] = px[1]
-    params[i]['n'] = py[0]
-    params[i]['n_std'] = py[1]
-
-    log.log('Fitting statistics for zone %i:' % n)
-    if dists[i][0] == 'bimodal':
-        log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
-        log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
-    else:
-        log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
-    log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
+    # sort axis labels 
+    axs2d[i].set_title(zone_names[i])
+    axs2d[i].set_xlabel('Alpha (1/m)')
+    axs2d[i].set_ylabel('N (-)')
+    axs2d[i].set_xlim(np.log10(xlim))
+    axs2d[i].set_ylim(ylim)
+    axs2d[i].set_xticks(xlabel_pos, xlabel_val)
     
-    if dists[i][1] == 'bimodal':
-        log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
-        log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
-    else:
-        log.log('N : %f +/- %f (-)' % (py[0], py[1]))
-    log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
-    log.log(' ')
-    nsample = len(df['alpha_%i' % n][stable][idx])
+    # grab colour bar 
+    # if i == 0:
+    #     cbar = plt.colorbar(cmp, ax=cax, location="bottom")
+    #     cbar.set_label('Normalised Likelihood')
     
-    figure_file = os.path.join(dirname, 'mcmc_figure_zone%i.png' % i)
-    if savfig:
-        figs[i].savefig(figure_file)
-        cfig.savefig(os.path.join(dirname, 'colorbar.png'))
+    
+    ## add full histograms
+    axshi[0,i].hist(logxi[idx],bins=100)
+    axshi[1,i].hist(yi[idx],bins=100)
+    axshi[2,i].hist(logzi[idx],bins=100)
+    
+    # sort histogram axis 
+    axshi[0,i].set_title(zone_names[i])
+    axshi[0,i].set_xlabel('Alpha (1/m)')
+    axshi[0,i].set_xticks(xlabel_pos, xlabel_val)
+    axshi[1,i].set_xlabel('N (-)')
+    axshi[2,i].set_xlabel('K (m/day)')
+    axshi[2,i].set_xticks(zlabel_pos, zlabel_val)
+    
+#     ## add fitted curves
+#     x = df['alpha_%i' % n][stable][idx]
+#     y = df['vn_%i' % n][stable][idx]
+#     try: 
+#         snormx_coef = shapiro(x).statistic
+#         snormy_coef = shapiro(y).statistic
+#     except: 
+#         snormx_coef = 0
+#         snormy_coef = 0
+#     distx = distribution(x, dists[i][0], 100)
+#     disty = distribution(y, dists[i][1], 100)
+#     scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i])
+#     # fit a histogram (to the better fitting selections)
+#     try:
+#         px = distx.fit()
+#         # following code plots the fit on the histograms
+#         lx = np.linspace(min(x), max(x), 100)
+#         distx.plot(axs['hist_x%i' % i], 'r')
+#     except:
+#         log.log('Couldnt find optimal parameters for zone %i alpha'%n)
+#         px = np.full(6,np.nan)
+#     try:
+#         py = disty.fit()
+#         ly = np.linspace(min(y), max(y), 100)    
+#         disty.plot(axs['hist_y%i' % i], 'r', ydom=True)
+#     except:
+#         log.log('Couldnt find optimal parameters for zone %i N'%n)
+#         py = np.full(6,np.nan)
+        
+#     params[i]['alpha'] = px[0]
+#     params[i]['alpha_std'] = px[1]
+#     params[i]['n'] = py[0]
+#     params[i]['n_std'] = py[1]
 
-# save statistics to file 
-log.log('Nsample = %i' % nsample)
+#     log.log('Fitting statistics for zone %i:' % n)
+#     if dists[i][0] == 'bimodal':
+#         log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
+#         log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
+#     else:
+#         log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
+#     log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
+    
+#     if dists[i][1] == 'bimodal':
+#         log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
+#         log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
+#     else:
+#         log.log('N : %f +/- %f (-)' % (py[0], py[1]))
+#     log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
+#     log.log(' ')
+#     nsample = len(df['alpha_%i' % n][stable][idx])
+    
+#     figure_file = os.path.join(dirname, 'mcmc_figure_zone%i.png' % i)
+#     if savfig:
+#         figs[i].savefig(figure_file)
+#         cfig.savefig(os.path.join(dirname, 'colorbar.png'))
 
-for chain in np.unique(df['chain']):
-    idx = (df['chain'] == chain) & (df['Pt'] > 0)
-    color = (0.2, 0.2, 0.2, 0.5)
-    # for i in range(nzones):
-    #     n = i+1
-    #     x = df['alpha_%i' % n][idx]
-    #     y = df['vn_%i' % n][idx]
-    axs[nzones].plot(df['run'][stable][idx], df['Pt'][stable][idx], 
-                     alpha = 0.5, label='chain{:0>2d}'.format(chain))
-
-axs[nzones].set_xlim([min(df.run),max(df.run)])
-axs[nzones].legend(bbox_to_anchor=(1.05, 1.05))
-figs[nzones].set_tight_layout(True)
-figs[nzones].set_size_inches([14,6])
-if savfig:
-    figure_file = os.path.join(dirname, 'liklehood_track.png')
-    figs[nzones].savefig(figure_file)
-
-best_model_idx = np.argmax(df['Pt'])
-for i in range(nzones):
-    n = i+1
-    model = [df['alpha_%i' % n][best_model_idx],
-             df['vn_%i' % n][best_model_idx]]
-    log.log('Best fit for zone %i' % n)
-    log.log('Alpha : %f (1/m)' % (model[0]))
-    log.log('N : %f (-)' % (model[1]))
-log.log('Chains converged: %i'%len(chain_converged))
-
-#%% plot K 
-fig, ax = plt.subplots()
-
-ax.scatter(df['k_%i'%1].values, df['k_%i'%2].values, c=df['Pt'])
-
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlabel('k - SSF (1/m^2)')
-ax.set_ylabel('k - WMF (1/m^2)')
+# # save statistics to file 
+# log.log('Nsample = %i' % nsample)
 
 
-fig, ax = plt.subplots()
 
-ax.scatter(df['vn_%i'%1].values, df['vn_%i'%2].values, c=df['Pt'])
+# axs[nzones].set_xlim([min(df.run),max(df.run)])
+# axs[nzones].legend(bbox_to_anchor=(1.05, 1.05))
+# figs[nzones].set_tight_layout(True)
+# figs[nzones].set_size_inches([14,6])
+# if savfig:
+#     figure_file = os.path.join(dirname, 'liklehood_track.png')
+#     figs[nzones].savefig(figure_file)
+
+# best_model_idx = np.argmax(df['Pt'])
+# for i in range(nzones):
+#     n = i+1
+#     model = [df['alpha_%i' % n][best_model_idx],
+#              df['vn_%i' % n][best_model_idx]]
+#     log.log('Best fit for zone %i' % n)
+#     log.log('Alpha : %f (1/m)' % (model[0]))
+#     log.log('N : %f (-)' % (model[1]))
+# log.log('Chains converged: %i'%len(chain_converged))
+
+#%% 2d plots for testing 
+# fig, ax = plt.subplots()
+
+# ax.scatter(df['k_%i'%1].values, df['k_%i'%2].values, c=df['Pt'])
 
 # ax.set_xscale('log')
 # ax.set_yscale('log')
-ax.set_xlabel('vn - SSF')
-ax.set_ylabel('vn - WMF')
+# ax.set_xlabel('k - SSF (1/m^2)')
+# ax.set_ylabel('k - WMF (1/m^2)')
 
-fig, ax = plt.subplots()
 
-ax.scatter(df['alpha_%i'%1].values, df['alpha_%i'%2].values, c=df['Pt'])
+# fig, ax = plt.subplots()
 
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlabel('alpha - SSF')
-ax.set_ylabel('alpha - WMF')
+# ax.scatter(df['vn_%i'%1].values, df['vn_%i'%2].values, c=df['Pt'])
+
+# # ax.set_xscale('log')
+# # ax.set_yscale('log')
+# ax.set_xlabel('vn - SSF')
+# ax.set_ylabel('vn - WMF')
+
+# fig, ax = plt.subplots()
+
+# ax.scatter(df['alpha_%i'%1].values, df['alpha_%i'%2].values, c=df['Pt'])
+
+# ax.set_xscale('log')
+# ax.set_yscale('log')
+# ax.set_xlabel('alpha - SSF')
+# ax.set_ylabel('alpha - WMF')

@@ -38,10 +38,10 @@ if 'win' in sys.platform.lower():
     
 nchain = 12
 ncpu = 16
-nstep = 101
+nstep = 1001
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'_HydroMCMCmultiV2')
+sim_dir = os.path.join(model_dir,'HydroMCMCmultiV2')
 for d in [model_dir,sim_dir]:
     if not os.path.exists(d):
         os.mkdir(d)
