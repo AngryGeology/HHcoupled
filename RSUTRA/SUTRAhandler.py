@@ -2868,7 +2868,7 @@ class handler:
         self.tfunc = tfunc 
         self.diy = diy 
         
-    def mcmc(self, nsteps=100,  target_ar = -1):
+    def mcmc(self, nsteps=100,  target_ar = -1, restart = False):
         """
         Run a markov chain monte carlo search. Needs updating to make use 
         of materials. 
@@ -2882,6 +2882,9 @@ class handler:
         target_ar : float, optional
             Target acceptance rate for adaptive metropolis hastings algorithm. 
             The default is -1. If negative default metropolis hastings is used. 
+        restart : bool, optional 
+            Resart from previous run, if True then a log file must be present 
+            in the chains working directory. 
 
         Raises
         ------
@@ -2906,12 +2909,8 @@ class handler:
         # run metropolis algorithm to accept or decline new model 
         # do 1-4 for initial model 
         # repeat for as many steps needed 
+        
             
-        # create log file 
-        self.logf = os.path.join(self.dname, 'chain.log')
-        fh = open(self.logf,'w')
-        fh.close()
-
         # setup dataframe to log mcmc chain 
         self.chainlog = {}
         self.chainlog['run'] = [i for i in range(nsteps)]
@@ -2933,97 +2932,112 @@ class handler:
                 pkeys.append(key)
                 pzones.append(zone)
                 nparam += 1 
-                    
-                
-        # get starting place and set starting parameters for each mcmc chain 
-        logger('______Starting MCMC search_______',self.logf)
-        self.nruns = 0 # number of model runs 
-        naccept = 0 # number of accepted models 
-        stable = False # flag if initial model is stable, it must be in order to 
-        
-        # log distributions 
-        logger('Parameters to be tested (and distributions):',self.logf)
-        for zone in range(self.nzones):# setup columns for storing model parameters in log 
-            m = self.materials[zone]
-            for key in m.MCpdist.keys():
-                logger('\t%s_%i = %s'%(key, zone+1, m.MCpdist[key]), self.logf)
-        # continue to proposing new models in the mcmc chain. 
-        logger('Generating initial model',self.logf)
-        c = 0 # counter for trial model, ensures we dont get stuck in a infinite loop 
-        maxc = 1000
-        # run the first model 
-        while not stable: # run until stable (or until max counter is reached)
-            # failsafe statement 
-            if c>maxc:
-                break 
-            c+=1 
-            model, rdir, stable = self.mcmcProposer(None, 0,True)  # propose starting model 
-            if not stable: # restart loop if not stable  
-                logger('Initial model out of parameter range, selecting new parameters',self.logf)
-                continue 
-            # run init parameters 
-            logger('Running SUTRA model...',self.logf)
-            data,n = doSUTRArun(rdir,self.execpath)
-            if n < self.resultNsteps: # n does not meet the expected number of steps 
-                stable = False 
-                logger('Initial SUTRA model is unstable, attempting to run again with new starting parameters',self.logf)
-                continue 
-            logger('Done.',self.logf)
-        
-        if not stable: # if no stable model is found for start then we must exit 
-            logger('Initial trial is unstable solution! Try a different starting model',self.logf) # dont accept the trial model 
-            return self.chainlog, naccept/nsteps
-        
-        # convert result to resistivity for R2/(or R3t) and setup forward modelling directory 
-        logger('Writing out resistivity files',self.logf)
-        self.setupRruns(self.write2in, [0], self.survey_keys, self.seqs,
-                        tfunc=self.tfunc, diy=self.diy)
 
-        # now run resistivity code 
-        logger('Running forward resistivity models',self.logf)
-        self.runResFwdmdl(0)
-        
-        # get result 
-        logger('Retrieving forward resistivity runs',self.logf)
-        data_seq = self.getFwdRunResult(0)
-        
-        # compute initial chi^2 value 
-        d0 = self.tr['tr'].values # get real data values 
-        d1 = data_seq['tr'].values # get synthetic data values 
-        error = self.tr['error'].values # get error estimates 
-        
-        residuals = d0 - d1 
-        X2 = chi2(error, residuals)
-        Pi = normLike(error, residuals)
-        
-        self.chainlog['Chi^2'][0] = X2 
-        self.chainlog['Pt'][0] = Pi  
-        self.chainlog['Accept'][0] = True 
-        self.chainlog['Stable'][0] = True 
-        
-        logger('\nRun %i'%0,self.logf)
-        logger('Pi = %f'%Pi,self.logf)
-
-        logoutput = 'Parameters: \n' 
-        for j in range(nparam):
-            key = pkeys[j]
-            zone = pzones[j] # add one to get index starting at 1 
-            self.chainlog['%s_%i'%(key,zone+1)][0] = model[key][zone]
-            logoutput += '%s_%i = %f\t'%(key,zone,model[key][zone])
-               
-        logger(logoutput,self.logf) 
-        logger('Done.',self.logf)
-        
-        
+        sstart = 1 # step start 
+    
         # setup parameters for altering the acceptance rate on the fly 
         ar = 1 # acceptance rate 
         a_fac = 1 # alpha factor. modified according to the target acceptance rate 
         ac = [] # empty list for acceptance chain 
         
-        logger('Starting search from initial model',self.logf)
+        # create log file 
+        self.logf = os.path.join(self.dname, 'chain.log')
+        
+        # real data handling 
+        d0 = self.tr['tr'].values # get real data values 
+        error = self.tr['error'].values # get error estimates 
+        
+        if restart: 
+            maxruns, model, naccept, ac, Pi = self.recoverChainLog(self.logf, nsteps) 
+            sstart = maxruns + 1 
+            self.nruns = sstart 
+            logger('#### Restarting MCMC search on run %i ####'%sstart,self.logf)
+        else: 
+            fh = open(self.logf,'w')
+            fh.close()
+                        
+            # get starting place and set starting parameters for each mcmc chain 
+            logger('______Starting MCMC search_______',self.logf)
+            self.nruns = 0 # number of model runs 
+            naccept = 0 # number of accepted models 
+            stable = False # flag if initial model is stable, it must be in order to 
+            
+            # log distributions 
+            logger('Parameters to be tested (and distributions):',self.logf)
+            for zone in range(self.nzones):# setup columns for storing model parameters in log 
+                m = self.materials[zone]
+                for key in m.MCpdist.keys():
+                    logger('\t%s_%i = %s'%(key, zone+1, m.MCpdist[key]), self.logf)
+            # continue to proposing new models in the mcmc chain. 
+            logger('Generating initial model',self.logf)
+            c = 0 # counter for trial model, ensures we dont get stuck in a infinite loop 
+            maxc = 1000
+            # run the first model 
+            while not stable: # run until stable (or until max counter is reached)
+                # failsafe statement 
+                if c>maxc:
+                    break 
+                c+=1 
+                model, rdir, stable = self.mcmcProposer(None, 0,True)  # propose starting model 
+                if not stable: # restart loop if not stable  
+                    logger('Initial model out of parameter range, selecting new parameters',self.logf)
+                    continue 
+                # run init parameters 
+                logger('Running SUTRA model...',self.logf)
+                data,n = doSUTRArun(rdir,self.execpath)
+                if n < self.resultNsteps: # n does not meet the expected number of steps 
+                    stable = False 
+                    logger('Initial SUTRA model is unstable, attempting to run again with new starting parameters',self.logf)
+                    continue 
+                logger('Done.',self.logf)
+            
+            if not stable: # if no stable model is found for start then we must exit 
+                logger('Initial trial is unstable solution! Try a different starting model',self.logf) # dont accept the trial model 
+                return self.chainlog, naccept/nsteps
+            
+            # convert result to resistivity for R2/(or R3t) and setup forward modelling directory 
+            logger('Writing out resistivity files',self.logf)
+            self.setupRruns(self.write2in, [0], self.survey_keys, self.seqs,
+                            tfunc=self.tfunc, diy=self.diy)
+    
+            # now run resistivity code 
+            logger('Running forward resistivity models',self.logf)
+            self.runResFwdmdl(0)
+            
+            # get result 
+            logger('Retrieving forward resistivity runs',self.logf)
+            data_seq = self.getFwdRunResult(0)
+            
+            # compute initial chi^2 value 
+            # d0 = self.tr['tr'].values # get real data values 
+            d1 = data_seq['tr'].values # get synthetic data values 
+            # error = self.tr['error'].values # get error estimates 
+            
+            residuals = d0 - d1 
+            X2 = chi2(error, residuals)
+            Pi = normLike(error, residuals)
+            
+            self.chainlog['Chi^2'][0] = X2 
+            self.chainlog['Pt'][0] = Pi  
+            self.chainlog['Accept'][0] = True 
+            self.chainlog['Stable'][0] = True 
+            
+            logger('\nRun %i'%0,self.logf)
+            logger('Pi = %f'%Pi,self.logf)
+
+            logoutput = 'Parameters: \n' 
+            for j in range(nparam):
+                key = pkeys[j]
+                zone = pzones[j] # add one to get index starting at 1 
+                self.chainlog['%s_%i'%(key,zone+1)][0] = model[key][zone]
+                logoutput += '%s_%i = %e\t'%(key,zone+1,model[key][zone])
+                   
+            logger(logoutput,self.logf) 
+            logger('Done.',self.logf)
+            logger('Starting search from initial model',self.logf)
         
         # for loop goes here 
-        for i in range(1,nsteps):
+        for i in range(sstart, nsteps):
             # delete old runs to save on file space 
             if i>3:
                 dpath = os.path.join(self.dname,self.template.format(i-3)) 
@@ -3143,6 +3157,99 @@ class handler:
         nstep = self.resultNsteps
         step = pd.DataFrame(self.nodResult['step%i'%(nstep-1)])
         step.to_csv(os.path.join(self.dname,'warm.csv'))
+        
+    #%% recover chain log for an mcmc chain that got interupted 
+    def recoverChainLog(self, flog, nsteps):
+        
+        fh = open(flog,'r')
+        lines = fh.readlines()
+        fh.close() 
+    
+        max_run = 0 
+        naccept = 0 
+        ac = [] 
+        for i,line in enumerate(lines):
+            if '#' in line: 
+                continue 
+            if 'Run ' in line: 
+                n = int(line.strip().split()[-1])
+                if n == 0:
+                    self.chainlog['Accept'][n] = True 
+                    for j in range(1,10):
+                        _line = lines[i+j].strip() 
+                        if 'Pi =' in _line:
+                            Pi = float(_line.split('=')[-1])
+                            self.chainlog['Pt'][n] = Pi 
+                        if 'Parameters:' in _line: 
+                            param_line = lines[i+j+1].strip() 
+                            # extract  keys 
+                            keys = param_line.split()[0::3]
+                            values = param_line.split()[2::3]
+                            for k,key in enumerate(keys):
+                                if key not in self.chainlog.keys():
+                                    self.chainlog[key] = [0.0]*nsteps  
+                                self.chainlog[key][n] = float(values[k])
+                    continue 
+                
+                for j in range(1,10):
+                    if i+j >= len(lines):
+                        continue 
+                    _line = lines[i+j].strip()
+                    if 'Accept' in _line:
+                        tmp = _line.split('=')[-1]
+                        if 'True' in tmp:
+                            self.chainlog['Accept'][n] = True 
+                            naccept += 1 
+                            ac.append(1)
+                        else:
+                            self.chainlog['Accept'][n] = False 
+                            ac.append(0)
+                        # cache the last time the modelling ran (ignores if the process was interupted mid way)
+                        if n > max_run:
+                            max_run = n 
+                        break 
+                    if 'Pt =' in _line:
+                        tmp = _line.split(',') 
+                        Pt = float(tmp[0].split('=')[-1])
+                        Pi = float(tmp[1].split('=')[-1])
+                        self.chainlog['Pt'][n] = Pt 
+                    if 'Alpha =' in _line: 
+                        tmp = _line.split(',') 
+                        alpha = float(tmp[0].split('=')[-1])
+                        mu = float(tmp[1].split('=')[-1])
+                        self.chainlog['mu'][n] = mu 
+                        self.chainlog['alpha'][n] = alpha 
+                    if 'Parameters:' in _line: 
+                        param_line = lines[i+j+1].strip() 
+                        # extract  keys 
+                        keys = param_line.split()[0::3]
+                        values = param_line.split()[2::3]
+                        for k,key in enumerate(keys):
+                            self.chainlog[key][n] = float(values[k])
+                            
+        last_model = {
+            'k':['-']*self.nzones,
+            'theta':['-']*self.nzones,
+            'res':['-']*self.nzones,
+            'sat':['-']*self.nzones,
+            'alpha':['-']*self.nzones,
+            'vn':['-']*self.nzones} 
+        
+        # find the index of when the last model was accepted 
+        max_accepted = 0 
+        Pi = 0 
+        for i, b in enumerate(self.chainlog['Accept']):
+            if b: 
+                max_accepted = i 
+        
+        for key in keys: 
+            zone = int(key.split('_')[-1])
+            model_key = key.split('_')[0]
+            last_model[model_key][zone-1] = self.chainlog[key][max_accepted]
+            Pi = self.chainlog['Pt'][max_accepted]
+                            
+        return max_run, last_model, naccept, ac, Pi   
+                    
         
     
 #%% convert input file to mesh file 

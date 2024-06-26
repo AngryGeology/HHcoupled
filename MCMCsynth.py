@@ -38,6 +38,7 @@ if 'win' in sys.platform.lower():
 nchain = 12
 ncpu = 16
 nstep = 1001
+restart = True 
     
 synth_dir = 'SyntheticStudy'
 model_dir = os.path.join(synth_dir,'Models')
@@ -95,24 +96,29 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc, len(source_node),ntimes)
 
 #%% create materials 
 SSF = material(Ksat=0.14,theta_res=0.06,theta_sat=0.38,
-               alpha=0.1317,vn=2.2,name='STAITHES')
+               alpha=0.13,vn=2.2,name='STAITHES')
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
                alpha=0.012,vn=1.44,name='WHITBY')
 
-SSF.setPetroFuncs(ssf_petro_sat, ssf_petro_sat)
+SSF.setPetroFuncs(ssf_petro_sat,ssf_petro_sat)
 WMF.setPetroFuncs(wmf_petro_sat, wmf_petro_sat)
 
+
 # want to examine VG parameters for SSF and WMF 
-alpha_SSF = [0.001, 0.02, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
-alpha_WMF = [0.001, 0.02, 2.0] 
-vn_SSF = [1.1, 0.02, 2.5]
-vn_WMF = [1.1, 0.02, 2.5]
+alpha_SSF = [0.002, 0.1, 2.0] # LOWER LIMIT, STEP SIZE, UPPER LIMIT  
+alpha_WMF = [0.002, 0.1, 2.0] 
+vn_SSF = [0.9, 0.1, 2.5]
+vn_WMF = [1.1, 0.1, 2.5]
+K_SSF = [0.064,0.1,6.4]
+K_WMF = [0.0013,0.1,0.13]
 
-ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF}
-wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF}
+ssf_param = {'alpha':alpha_SSF,'vn':vn_SSF, 'K':K_SSF}
+wmf_param = {'alpha':alpha_WMF,'vn':vn_WMF, 'K':K_WMF}
+ssf_pdist = {'alpha':'lognormal','vn':'normal', 'K':'lognormal'}
+wmf_pdist = {'alpha':'lognormal','vn':'normal', 'K':'lognormal'}
 
-SSF.setMCparam(ssf_param)
-WMF.setMCparam(wmf_param)
+SSF.setMCparam(ssf_param, ssf_pdist)
+WMF.setMCparam(wmf_param, wmf_pdist)
 
 #%% run mcmc 
 def run(i):
@@ -160,7 +166,7 @@ def run(i):
     depths, node_depths = h.getDepths()
     
     # run single mcmc single chain 
-    chainlog, ar = h.mcmc(nstep,0.234)
+    chainlog, ar = h.mcmc(nstep, 0.234, restart)
     df = pd.DataFrame(chainlog)
     df.to_csv(os.path.join(h.dname,'chainlog.csv'),index=False)
 

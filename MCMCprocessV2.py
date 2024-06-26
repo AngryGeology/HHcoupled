@@ -19,28 +19,26 @@ plt.close('all')
 # %% main program parameters
 # get mcmc result file
 
-synth = False 
-savfig = True 
-contour = False 
-style = True 
+synth = True 
+savfig = False
 nzones = 2
 nparam = 3 
 
 if synth:
-    dirname = 'SyntheticStudy/Models/MCMC/'    
+    dirname = 'SyntheticStudy/Models/MCMC'    
     dists = {0: ['gauss', 'bimodal'],
-              1: ['gauss', 'bimodal'],
-              2: ['guass', 'guass']}
-    pt_threshold = 0.6
+             1: ['gauss', 'bimodal'],
+             2: ['guass', 'guass']}
+    pt_threshold = 0.5
     simN = {0:1.9, 1:1.5}
     simA = {0:0.2, 1:0.1}
-    simK = {0:0.14, 1:0.0013}
+    simK = {0:0.14, 1:0.013}
     zone_names = ['Sandstone','Mudstone']
 else:
     dirname = 'Models/HydroMCMCmultiV2'
     # dirname = 'Models/HydroMCMC'
     dists = {0: ['bimodal', 'bimodal'],
-             1: ['gauss', 'guass'],
+             1: ['bimodal', 'bimodal'],
              2: ['bimodal', 'bimodal']}
     pt_threshold = 0.0225
     simN = None 
@@ -58,9 +56,9 @@ convert_cons= {'u':1.307e-3, #kg/ms
 
 # %% functions
 # fitting distributions
-def gauss(x, mu, sigma, A):
+def gauss(x, mu, sigma, A=1):
     left = A/(sigma*np.sqrt(2*np.pi))
-    right = np.exp(-0.5*((x-mu)/sigma)**2)
+    right = np.exp(-0.5*(((x-mu)**2)/(sigma**2)))
     return left*right
 
 
@@ -120,7 +118,7 @@ class logger():
 
 # class to fit a distribution
 class distribution():
-    def __init__(self, xdata, dist='gauss', nbins=None):
+    def __init__(self, xdata, dist='gauss', nbins=None, log=False):
         self.xdata = xdata
         self.nbins = nbins
         self.dist = dist
@@ -134,6 +132,7 @@ class distribution():
         self.sigma0 = None
         self.mu1 = None
         self.sigma1 = None
+        self.log = log 
 
     def bar_plot(self, ax=None):
         if ax is None:
@@ -145,22 +144,28 @@ class distribution():
         if self.dist == 'gauss':
             _mu0 = np.mean(self.xdata)
             _sigma0 = np.std(self.xdata)
-            _A0 = _sigma0*5
+            _A0 = 1 #_sigma0*5
             p0 = (_mu0, _sigma0, _A0)
             self.param, cov = curve_fit(gauss, self.xfit, self.yfit, p0=p0)
+            if self.log: 
+                paramlog = [10**p for p in self.param]
+                self.param = paramlog 
             self.mu0 = self.param[0]
             self.sigma0 = self.param[1]
         elif self.dist == 'bimodal':
             p = np.percentile(self.xdata, (1, 25, 50, 75, 90))
             _mu0 = p[1]
             _sigma0 = abs(p[0]-p[2])
-            _A0 = _sigma0*5
+            _A0 = 1 # _sigma0*5
             _mu1 = p[3]
             _sigma1 = abs(p[2]-p[4])
-            _A1 = _sigma1*5
+            _A1 = 1 # _sigma1*5
             p0 = (_mu0, _sigma0, _A0, _mu1, _sigma1, _A1)
             self.param, cov = curve_fit(bimodal, self.xfit, self.yfit, p0=p0,
                                         maxfev=10000)
+            if self.log: 
+                paramlog = [10**p for p in self.param]
+                self.param = paramlog 
             self.mu0 = self.param[0]
             self.sigma0 = self.param[1]
             self.mu1 = self.param[3]
@@ -170,11 +175,15 @@ class distribution():
     def plot(self, ax=None, c='r', ydom=False):
         if ax is None:
             fig, ax = plt.subplots()
+            
+        param = self.param 
+        if self.log: 
+            param = [np.log10(p) for p in self.param]
 
         if self.dist == 'bimodal':
-            model = bimodal(self.xfit, *self.param)
+            model = bimodal(self.xfit, *param)
         elif self.dist == 'gauss':
-            model = gauss(self.xfit, *self.param)
+            model = gauss(self.xfit, *param)
         if ydom:
             ax.plot(model, self.xfit, c=c)
         else:
@@ -209,12 +218,14 @@ def get_burnin(df, pt_threshold):
         if max_pt > pt_threshold:
             # need to find where threshold get crossed for the first time
             c = 0 
-            for x in df.Pt[ii]:
-                c += 1
+            for i,x in enumerate(df.Pt[ii]):
+                c += 1 
+                run = df.run[ii].values[i]
+                if run < 250:
+                    continue 
                 if x >= pt_threshold:
                     break 
-            if c < 250: # cap c 
-                c = 250 
+
             idx_chain[c:-1] = True 
             chain_converged.append(chain)
         idx[ii] = idx_chain
@@ -245,11 +256,16 @@ for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt'] > 0)
     axl.plot(df['run'][stable][idx], df['Pt'][stable][idx], 
               alpha = 0.5, label='chain{:0>2d}'.format(chain))
+    
+if savfig:
+    figure_file = os.path.join(dirname, 'liklehood_track.png')
+    figl.savefig(figure_file)
 
 #%% create figures
 fighi, axshi = plt.subplots(nrows=nparam, ncols=nzones) # --> will hold histogram plots 
 fig2d, axs2d = plt.subplots(nrows=1, ncols=nzones) # --> will hold 2d plots 
 fig3d, axs3d = plt.subplots(nrows=1, ncols=nzones) # --> will hold 3d plots 
+cfig, cax = plt.subplots()
 
 # make 3d axis actually 3d 
 axs3d[0].remove()
@@ -270,7 +286,6 @@ idx, chain_converged = get_burnin(df[stable],pt_threshold)
 # plot liklihood data and paths
 params = {}
 for i in range(nzones):
-    print(i)
     params[i] = {}
     n = i+1
     xi = df['alpha_%i'%n][stable].values 
@@ -337,7 +352,13 @@ for i in range(nzones):
                     vmin=vmin,vmax=vmax)
 
     if synth:
-        axs2d[i].scatter(simA[i], simN[i], c='r', marker='+',s=30)
+        axs2d[i].scatter(np.log10(simA[i]), simN[i], c='r', marker='+',s=30)
+        xxA = [np.log10(simA[i]), np.log10(simA[i])]
+        xxN = [simN[i], simN[i]]
+        xxK = [np.log10(simK[i]), np.log10(simK[i])]
+        axshi[0,i].plot(xxA, [0,2], c='k', linestyle='--')
+        axshi[1,i].plot(xxN, [0,2], c='k', linestyle='--')
+        axshi[2,i].plot(xxK, [0,2], c='k', linestyle='--')
         
         
     # sort axis labels 
@@ -349,15 +370,15 @@ for i in range(nzones):
     axs2d[i].set_xticks(xlabel_pos, xlabel_val)
     
     # grab colour bar 
-    # if i == 0:
-    #     cbar = plt.colorbar(cmp, ax=cax, location="bottom")
-    #     cbar.set_label('Normalised Likelihood')
+    if i == 0:
+        cbar = plt.colorbar(cmp, ax=cax, location="bottom")
+        cbar.set_label('Normalised Likelihood')
     
     
     ## add full histograms
-    axshi[0,i].hist(logxi[idx],bins=100)
-    axshi[1,i].hist(yi[idx],bins=100)
-    axshi[2,i].hist(logzi[idx],bins=100)
+    axshi[0,i].hist(logxi[idx], bins=100, density=True)
+    axshi[1,i].hist(yi[idx],bins=100, density=True)
+    axshi[2,i].hist(logzi[idx],bins=100, density=True)
     
     # sort histogram axis 
     axshi[0,i].set_title(zone_names[i])
@@ -367,64 +388,95 @@ for i in range(nzones):
     axshi[2,i].set_xlabel('K (m/day)')
     axshi[2,i].set_xticks(zlabel_pos, zlabel_val)
     
-#     ## add fitted curves
-#     x = df['alpha_%i' % n][stable][idx]
-#     y = df['vn_%i' % n][stable][idx]
-#     try: 
-#         snormx_coef = shapiro(x).statistic
-#         snormy_coef = shapiro(y).statistic
-#     except: 
-#         snormx_coef = 0
-#         snormy_coef = 0
-#     distx = distribution(x, dists[i][0], 100)
-#     disty = distribution(y, dists[i][1], 100)
+    axshi[0,i].set_xlim([np.log10(0.001), np.log10(1.0)])
+    axshi[1,i].set_xlim([1.0, 2.5])
+    axshi[2,i].set_xlim([np.log10(0.001), np.log10(10.0)])
+    
+    for j in range(3):
+        axshi[j,i].set_ylim([0,2])
+    
+    ## add fitted curves
+    logx = logxi[idx]
+    y = yi[idx]
+    logz = logzi[idx]
+    
+    try: 
+        snormx_coef = shapiro(xi).statistic
+        snormy_coef = shapiro(yi).statistic
+        snormz_coef = shapiro(zi).statistic
+    except: 
+        snormx_coef = 0
+        snormy_coef = 0
+        snormz_coef = 0 
+    distx = distribution(logx, dists[0][i], 100, log=True)
+    disty = distribution(y, dists[1][i], 100)
+    distz = distribution(logz, dists[2][i], 100, log=True)
+    
 #     scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i])
-#     # fit a histogram (to the better fitting selections)
-#     try:
-#         px = distx.fit()
-#         # following code plots the fit on the histograms
-#         lx = np.linspace(min(x), max(x), 100)
-#         distx.plot(axs['hist_x%i' % i], 'r')
-#     except:
-#         log.log('Couldnt find optimal parameters for zone %i alpha'%n)
-#         px = np.full(6,np.nan)
-#     try:
-#         py = disty.fit()
-#         ly = np.linspace(min(y), max(y), 100)    
-#         disty.plot(axs['hist_y%i' % i], 'r', ydom=True)
-#     except:
-#         log.log('Couldnt find optimal parameters for zone %i N'%n)
-#         py = np.full(6,np.nan)
+    # fit a histogram (to the better fitting selections)
+    try:
+        px = distx.fit()
+        # following code plots the fit on the histograms
+        lx = np.linspace(min(logx), max(logx), 100)
+        distx.plot(axshi[0,i], 'r')
+    except:
+        log.log('Couldnt find optimal parameters for zone %i alpha'%n)
+        px = np.full(6,np.nan)
         
-#     params[i]['alpha'] = px[0]
-#     params[i]['alpha_std'] = px[1]
-#     params[i]['n'] = py[0]
-#     params[i]['n_std'] = py[1]
+    try:
+        py = disty.fit()
+        ly = np.linspace(min(y), max(y), 100)    
+        disty.plot(axshi[1,i], 'r')
+    except:
+        log.log('Couldnt find optimal parameters for zone %i N'%n)
+        py = np.full(6,np.nan)
+        
+    try:
+        pz = distz.fit()
+        lz = np.linspace(min(logz), max(logz), 100)    
+        distz.plot(axshi[2,i], 'r')
+    except:
+        log.log('Couldnt find optimal parameters for zone %i K'%n)
+        pz = np.full(6,np.nan)
+        
+    params[i]['alpha'] = px[0]
+    params[i]['alpha_std'] = px[1]
+    params[i]['n'] = py[0]
+    params[i]['n_std'] = py[1]
+    params[i]['K'] = pz[0]
+    params[i]['K_std'] = pz[1]
 
-#     log.log('Fitting statistics for zone %i:' % n)
-#     if dists[i][0] == 'bimodal':
-#         log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
-#         log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
-#     else:
-#         log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
-#     log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
+    log.log('Fitting statistics for zone %i:' % n)
+    if dists[0][i] == 'bimodal':
+        log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
+        log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
+    else:
+        log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
+    log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
     
-#     if dists[i][1] == 'bimodal':
-#         log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
-#         log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
-#     else:
-#         log.log('N : %f +/- %f (-)' % (py[0], py[1]))
-#     log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
-#     log.log(' ')
-#     nsample = len(df['alpha_%i' % n][stable][idx])
+    if dists[1][i] == 'bimodal':
+        log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
+        log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
+    else:
+        log.log('N : %f +/- %f (-)' % (py[0], py[1]))
+    log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
     
-#     figure_file = os.path.join(dirname, 'mcmc_figure_zone%i.png' % i)
-#     if savfig:
-#         figs[i].savefig(figure_file)
-#         cfig.savefig(os.path.join(dirname, 'colorbar.png'))
+    if dists[2][i] == 'bimodal':
+        log.log('K 1: %f +/- %f (-)' % (pz[0], pz[1]))
+        log.log('K 2: %f +/- %f (-)' % (pz[3], pz[4]))
+    else:
+        log.log('K : %f +/- %f (-)' % (pz[0], pz[1]))
+    log.log('Shapiro-Wilk coefficient for K: %3.2f'%snormz_coef)
+    log.log(' ')
+    nsample = len(df['alpha_%i' % n][stable][idx])
+    
+    figure_file = os.path.join(dirname, 'mcmc_pcolor.png')
+    if savfig:
+        fig2d.savefig(figure_file)
+        cfig.savefig(os.path.join(dirname, 'colorbar.png'))
 
 # # save statistics to file 
-# log.log('Nsample = %i' % nsample)
+log.log('Nsample = %i' % nsample)
 
 
 
@@ -432,45 +484,45 @@ for i in range(nzones):
 # axs[nzones].legend(bbox_to_anchor=(1.05, 1.05))
 # figs[nzones].set_tight_layout(True)
 # figs[nzones].set_size_inches([14,6])
-# if savfig:
-#     figure_file = os.path.join(dirname, 'liklehood_track.png')
-#     figs[nzones].savefig(figure_file)
 
-# best_model_idx = np.argmax(df['Pt'])
-# for i in range(nzones):
-#     n = i+1
-#     model = [df['alpha_%i' % n][best_model_idx],
-#              df['vn_%i' % n][best_model_idx]]
-#     log.log('Best fit for zone %i' % n)
-#     log.log('Alpha : %f (1/m)' % (model[0]))
-#     log.log('N : %f (-)' % (model[1]))
-# log.log('Chains converged: %i'%len(chain_converged))
+
+best_model_idx = np.argmax(df['Pt'])
+for i in range(nzones):
+    n = i+1
+    model = [df['alpha_%i' % n][best_model_idx],
+             df['vn_%i' % n][best_model_idx],
+             convertk2K(df['k_%i' % n][best_model_idx])]
+    log.log('Best fit for zone %i' % n)
+    log.log('Alpha : %f (1/m)' % (model[0]))
+    log.log('N : %f (-)' % (model[1]))
+    log.log('K : %f (m/day)' %model[2])
+log.log('Chains converged: %i'%len(chain_converged))
 
 #%% 2d plots for testing 
-fig, ax = plt.subplots()
+# fig, ax = plt.subplots()
 
-ax.scatter(df['k_%i'%1][stable].values, df['k_%i'%2][stable].values, c=df['Pt'][stable])
-
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlabel('k - SSF (1/m^2)')
-ax.set_ylabel('k - WMF (1/m^2)')
-
-
-fig, ax = plt.subplots()
-
-ax.scatter(df['vn_%i'%1][stable].values, df['vn_%i'%2][stable].values, c=df['Pt'][stable])
+# ax.scatter(df['k_%i'%1][stable].values, df['k_%i'%2][stable].values, c=df['Pt'][stable])
 
 # ax.set_xscale('log')
 # ax.set_yscale('log')
-ax.set_xlabel('vn - SSF')
-ax.set_ylabel('vn - WMF')
+# ax.set_xlabel('k - SSF (1/m^2)')
+# ax.set_ylabel('k - WMF (1/m^2)')
 
-fig, ax = plt.subplots()
 
-ax.scatter(df['alpha_%i'%1][stable].values, df['alpha_%i'%2][stable].values, c=df['Pt'][stable])
+# fig, ax = plt.subplots()
 
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlabel('alpha - SSF')
-ax.set_ylabel('alpha - WMF')
+# ax.scatter(df['vn_%i'%1][stable].values, df['vn_%i'%2][stable].values, c=df['Pt'][stable])
+
+# # ax.set_xscale('log')
+# # ax.set_yscale('log')
+# ax.set_xlabel('vn - SSF')
+# ax.set_ylabel('vn - WMF')
+
+# fig, ax = plt.subplots()
+
+# ax.scatter(df['alpha_%i'%1][stable].values, df['alpha_%i'%2][stable].values, c=df['Pt'][stable])
+
+# ax.set_xscale('log')
+# ax.set_yscale('log')
+# ax.set_xlabel('alpha - SSF')
+# ax.set_ylabel('alpha - WMF')
