@@ -19,10 +19,12 @@ plt.close('all')
 # %% main program parameters
 # get mcmc result file
 
-synth = True 
-savfig = False
+synth = False 
+savfig = False 
 nzones = 2
 nparam = 3 
+show_modes = False 
+show_means = True 
 
 if synth:
     dirname = 'SyntheticStudy/Models/MCMC'    
@@ -146,10 +148,14 @@ class distribution():
             _sigma0 = np.std(self.xdata)
             _A0 = 1 #_sigma0*5
             p0 = (_mu0, _sigma0, _A0)
+            b0 = (-np.inf, 0, -1)
+            b1 = (np.inf, np.inf, 1)
             self.param, cov = curve_fit(gauss, self.xfit, self.yfit, p0=p0)
             if self.log: 
-                paramlog = [10**p for p in self.param]
-                self.param = paramlog 
+                parami =[0,1]
+                for i in parami: 
+                    self.param[i] = 10**self.param[i]
+
             self.mu0 = self.param[0]
             self.sigma0 = self.param[1]
         elif self.dist == 'bimodal':
@@ -161,11 +167,15 @@ class distribution():
             _sigma1 = abs(p[2]-p[4])
             _A1 = 1 # _sigma1*5
             p0 = (_mu0, _sigma0, _A0, _mu1, _sigma1, _A1)
+            b0 = (-np.inf, 0, -1, -np.inf, 0, -1)
+            b1 = (np.inf, np.inf, 1, np.inf, np.inf, 1)
             self.param, cov = curve_fit(bimodal, self.xfit, self.yfit, p0=p0,
-                                        maxfev=10000)
+                                        maxfev=10000, bounds=(b0,b1))
             if self.log: 
-                paramlog = [10**p for p in self.param]
-                self.param = paramlog 
+                parami = [0,1,3,4]
+                for i in parami: 
+                    self.param[i] = 10**self.param[i]
+
             self.mu0 = self.param[0]
             self.sigma0 = self.param[1]
             self.mu1 = self.param[3]
@@ -176,9 +186,13 @@ class distribution():
         if ax is None:
             fig, ax = plt.subplots()
             
-        param = self.param 
+        param = self.param.copy() 
         if self.log: 
-            param = [np.log10(p) for p in self.param]
+            for i in range(len(self.param)):
+                if i == 2 or i == 5: 
+                    continue 
+                else:
+                    param[i] = np.log10(param[i])
 
         if self.dist == 'bimodal':
             model = bimodal(self.xfit, *param)
@@ -246,16 +260,20 @@ for f in os.listdir(dirname):
 log.log('Fitting stats for McMC file: %s'%fname)
 log.log('_'*32)
 log.log(' ')
+log.log('Stats reported as <parameter>_<mode number> = <mu> +/- <sigma> | <amplitude>')
 
 df = pd.read_csv(fname)
 stable = df['Stable']
 
 ## liklehood track 
 figl, axl = plt.subplots() 
+figl.set_size_inches([14., 4.8])
 for chain in np.unique(df['chain']):
     idx = (df['chain'] == chain) & (df['Pt'] > 0)
     axl.plot(df['run'][stable][idx], df['Pt'][stable][idx], 
               alpha = 0.5, label='chain{:0>2d}'.format(chain))
+axl.set_xlabel('Run number')
+axl.set_ylabel('Normalised Liklehood')
     
 if savfig:
     figure_file = os.path.join(dirname, 'liklehood_track.png')
@@ -274,8 +292,12 @@ axs3d[0] = fig3d.add_subplot(1,nzones, 1, projection='3d')
 axs3d[1] = fig3d.add_subplot(1,nzones, 2, projection='3d')
 
 fighi.set_tight_layout(True)
+fighi.set_size_inches([11,  7.5])
 fig2d.set_tight_layout(True)
-fig3d.set_tight_layout(True)
+fig2d.set_size_inches([11,  5])
+# fig3d.set_tight_layout(True)
+fig3d.set_size_inches([11,  6])
+
 
 
 #%% main loop 
@@ -304,20 +326,12 @@ for i in range(nzones):
     xlabel_pos = np.array([-3., -2., -1.,  0.])
     xlabel_val = 10**xlabel_pos
     axs3d[i].set_xticks(xlabel_pos, xlabel_val)
-    # axs3d[i].xaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-    # axs3d[i].xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    # axs3d[i].set_xscale('linear')
-    
     axs3d[i].set_ylabel('N (-)')
-    # axs3d[i].set_yscale('log')
     
     axs3d[i].set_zlabel('K (m/day)')
     zlabel_pos = np.array([ -2, -1.,  0., 1.0])
     zlabel_val = 10**zlabel_pos
     axs3d[i].set_zticks(zlabel_pos, zlabel_val)
-    # axs3d[i].zaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
-    # axs3d[i].zaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-    # axs3d[i].set_zscale('log')
     
     ## create matrix of likelihoods and density for better visualisation 
     binwidth = 0.025
@@ -356,9 +370,9 @@ for i in range(nzones):
         xxA = [np.log10(simA[i]), np.log10(simA[i])]
         xxN = [simN[i], simN[i]]
         xxK = [np.log10(simK[i]), np.log10(simK[i])]
-        axshi[0,i].plot(xxA, [0,2], c='k', linestyle='--')
-        axshi[1,i].plot(xxN, [0,2], c='k', linestyle='--')
-        axshi[2,i].plot(xxK, [0,2], c='k', linestyle='--')
+        axshi[0,i].plot(xxA, [0,2], c='k', linestyle='-')
+        axshi[1,i].plot(xxN, [0,2], c='k', linestyle='-')
+        axshi[2,i].plot(xxK, [0,2], c='k', linestyle='-')
         
         
     # sort axis labels 
@@ -394,12 +408,8 @@ for i in range(nzones):
     
     for j in range(3):
         axshi[j,i].set_ylim([0,2])
-    
-    ## add fitted curves
-    logx = logxi[idx]
-    y = yi[idx]
-    logz = logzi[idx]
-    
+        
+    ## shapiro wilk tests
     try: 
         snormx_coef = shapiro(xi).statistic
         snormy_coef = shapiro(yi).statistic
@@ -408,11 +418,35 @@ for i in range(nzones):
         snormx_coef = 0
         snormy_coef = 0
         snormz_coef = 0 
+        
+    ## means and stds 
+    alpha_mean = np.mean(logxi[idx])
+    alpha_std = np.std(logxi[idx])
+    n_mean = np.mean(yi[idx])
+    n_std = np.std(yi[idx])
+    k_mean = np.mean(logzi[idx])
+    k_std = np.std(logzi[idx])
+    
+    log.log('Mean and standard deviations for zone %i:' % n)
+    log.log('Log10(Alpha): %f +/- %f'%(alpha_mean, alpha_std))
+    log.log('N: %f +/- %f'%(n_mean, n_std))
+    log.log('Log10(K): %f +/- %f'%(k_mean, k_std))
+    log.log('')
+    if show_means: 
+        axshi[0,i].plot([alpha_mean, alpha_mean], [0,2], c='k', linestyle=':')
+        axshi[1,i].plot([n_mean, n_mean], [0,2], c='k', linestyle=':')
+        axshi[2,i].plot([k_mean, k_mean], [0,2], c='k', linestyle=':')
+    
+    
+    ## try and fit curves 
+    logx = logxi[idx]
+    y = yi[idx]
+    logz = logzi[idx]
+    
     distx = distribution(logx, dists[0][i], 100, log=True)
     disty = distribution(y, dists[1][i], 100)
     distz = distribution(logz, dists[2][i], 100, log=True)
     
-#     scatter_hist(x, y, axs[i], axs['hist_x%i' % i], axs['hist_y%i' % i])
     # fit a histogram (to the better fitting selections)
     try:
         px = distx.fit()
@@ -446,34 +480,51 @@ for i in range(nzones):
     params[i]['K'] = pz[0]
     params[i]['K_std'] = pz[1]
 
-    log.log('Fitting statistics for zone %i:' % n)
+    log.log('Fitting statistics (anti-logged) for zone %i:' % n)
     if dists[0][i] == 'bimodal':
-        log.log('Alpha 1: %f +/- %f (1/m)' % (px[0], px[1]))
-        log.log('Alpha 2: %f +/- %f (1/m)' % (px[3], px[4]))
+        log.log('Alpha 1: %f +/- %f | %f (1/m)' % (px[0], px[1], px[2]))
+        log.log('Alpha 2: %f +/- %f | %f (1/m)' % (px[3], px[4], px[5]))
+        if show_modes: 
+            axshi[0,i].plot(np.log10([px[0], px[0]]), [0,2], c='k', linestyle=':')
+            axshi[0,i].plot(np.log10([px[3], px[3]]), [0,2], c='k', linestyle=':')
     else:
-        log.log('Alpha : %f +/- %f (1/m)' % (px[0], px[1]))
+        log.log('Alpha : %f +/- %f | %f (1/m)' % (px[0], px[1], px[2]))
+        if show_modes: 
+            axshi[0,i].plot(np.log10([px[0], px[0]]), [0,2], c='k', linestyle=':')
     log.log('Shapiro-Wilk coefficient for Alpha: %3.2f'%snormx_coef)
     
     if dists[1][i] == 'bimodal':
-        log.log('N 1: %f +/- %f (-)' % (py[0], py[1]))
-        log.log('N 2: %f +/- %f (-)' % (py[3], py[4]))
+        log.log('N 1: %f +/- %f | %f (-)' % (py[0], py[1], py[2]))
+        log.log('N 2: %f +/- %f | %f (-)' % (py[3], py[4], py[5]))
+        if show_modes: 
+            axshi[1,i].plot([py[0], py[0]], [0,2], c='k', linestyle=':')
+            axshi[1,i].plot([py[3], py[3]], [0,2], c='k', linestyle=':')
     else:
-        log.log('N : %f +/- %f (-)' % (py[0], py[1]))
+        log.log('N : %f +/- %f | %f (-)' % (py[0], py[1], py[2]))
+        if show_modes: 
+            axshi[1,i].plot([py[0], py[0]], [0,2], c='k', linestyle=':')
     log.log('Shapiro-Wilk coefficient for N: %3.2f'%snormy_coef)
     
     if dists[2][i] == 'bimodal':
-        log.log('K 1: %f +/- %f (-)' % (pz[0], pz[1]))
-        log.log('K 2: %f +/- %f (-)' % (pz[3], pz[4]))
+        log.log('K 1: %f +/- %f | %f (-)' % (pz[0], pz[1], pz[2]))
+        log.log('K 2: %f +/- %f | %f (-)' % (pz[3], pz[4], pz[5]))
+        if show_modes: 
+            axshi[2,i].plot(np.log10([pz[0], pz[0]]), [0,2], c='k', linestyle=':')
+            axshi[2,i].plot(np.log10([pz[3], pz[3]]), [0,2], c='k', linestyle=':')
     else:
-        log.log('K : %f +/- %f (-)' % (pz[0], pz[1]))
+        log.log('K : %f +/- %f | %f (-)' % (pz[0], pz[1], pz[2]))
+        if show_modes: 
+            axshi[2,i].plot(np.log10([pz[0], pz[0]]), [0,2], c='k', linestyle=':')
     log.log('Shapiro-Wilk coefficient for K: %3.2f'%snormz_coef)
     log.log(' ')
     nsample = len(df['alpha_%i' % n][stable][idx])
     
-    figure_file = os.path.join(dirname, 'mcmc_pcolor.png')
-    if savfig:
-        fig2d.savefig(figure_file)
-        cfig.savefig(os.path.join(dirname, 'colorbar.png'))
+## save figures 
+if savfig:
+    fig2d.savefig(os.path.join(dirname, 'mcmc_pcolor2d.png'), dpi= 600)
+    fig3d.savefig(os.path.join(dirname, 'mcmc_scatter3d.png'), dpi= 600)
+    cfig.savefig(os.path.join(dirname, 'colorbar.png'))
+    fighi.savefig(os.path.join(dirname, 'mcmc_histograms.png'), dpi=600)
 
 # # save statistics to file 
 log.log('Nsample = %i' % nsample)
