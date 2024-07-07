@@ -38,7 +38,7 @@ if 'win' in sys.platform.lower():
     exec_loc = r'C:/Users/jimmy/Documents/Programs/SUTRA/bin/sutra.exe'
 
 model_dir = 'Models'
-sim_dir = os.path.join(model_dir,'HydroSim1')
+sim_dir = os.path.join(model_dir,'HydroSim')
 datadir = os.path.join(sim_dir,'SimData')
 for d in [model_dir,sim_dir,datadir]:
     if not os.path.exists(d):
@@ -93,13 +93,6 @@ bot_side = {'idx':boundaries['bottom'],
             'color':'k',
             'label':'Min.Pressure Node'}
 
-# set right nodes to hold pressure
-# right_pressure = pressures['nodal'][boundaries['right']]
-# idx = right_pressure > 0
-# general_node += boundaries['right'][idx].tolist()
-# general_type += ['pres']*len(boundaries['right'][idx])
-# general_pressure += pressures['nodal'][boundaries['right'][idx]].tolist() 
-
 # set top boundary as source nodes 
 source_node = boundaries['top'] + 1 
 
@@ -125,13 +118,13 @@ fluidinp, tempinp = ci.prepRainfall(dx,precip,pet,kc,len(source_node),ntimes)
 #%% create materials 
 # SSF properties from mcmc search 
 SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
-                alpha=0.24,vn=1.30,name='STAITHES')
+                alpha=0.018,vn=1.24,name='STAITHES')
 # SSF properties from curve fitting 
 # SSF = material(Ksat=0.64,theta_res=0.06,theta_sat=0.38,
 #                 alpha=0.9,vn=1.1,name='STAITHES')
 # WMF properties from mcmc search 
 WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
-                alpha=0.11,vn=1.64,name='WHITBY')
+                alpha=0.016,vn=1.91,name='WHITBY')
 # wmf properties from curve fitting 
 # WMF = material(Ksat=0.013,theta_res=0.1,theta_sat=0.48,
 #                 alpha=0.08,vn=1.25,name='WHITBY')

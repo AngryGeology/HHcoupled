@@ -19,8 +19,8 @@ plt.close('all')
 # %% main program parameters
 # get mcmc result file
 
-synth = False 
-savfig = False 
+synth = True 
+savfig = True 
 nzones = 2
 nparam = 3 
 show_modes = False 
@@ -298,7 +298,8 @@ fig2d.set_size_inches([11,  5])
 # fig3d.set_tight_layout(True)
 fig3d.set_size_inches([11,  6])
 
-
+for i in range(3):
+    axshi[i,0].set_ylabel('Probably Density')
 
 #%% main loop 
 
@@ -411,9 +412,9 @@ for i in range(nzones):
         
     ## shapiro wilk tests
     try: 
-        snormx_coef = shapiro(xi).statistic
+        snormx_coef = shapiro(logxi).statistic
         snormy_coef = shapiro(yi).statistic
-        snormz_coef = shapiro(zi).statistic
+        snormz_coef = shapiro(logzi).statistic
     except: 
         snormx_coef = 0
         snormy_coef = 0

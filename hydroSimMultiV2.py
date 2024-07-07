@@ -347,8 +347,8 @@ for i in range(1,ntimes):
     if hydro_data['datetime'][i].year == 2016:
         tidx[i+1] = True 
 for i in range(satmatrix.shape[2]):
-    a = satmatrix[1495,tidx,i]
-    if np.all(a==0.0):
+    a = satmatrix[612,tidx,i]
+    if np.all(a<=0.0) or np.max(a)>1.0:
         stable[i] = False 
     
 # can't really filter due to how ram hungry satmatrix is 
